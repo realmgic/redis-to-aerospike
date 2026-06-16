@@ -155,8 +155,12 @@ A run prints, in order:
    write. `--dry-run` stops here.
 2. **Checks** -- warnings based on the Aerospike namespace settings (e.g. TTL
    eviction disabled).
-3. **Progress** -- a compact heartbeat line every `--progress-interval` seconds.
-4. **Summary** -- final counters (scanned, migrated, skipped, errors), timing,
+3. **Delimiter** -- the same three-line banner (`redis-to-aerospike: migration`
+   between rule lines) is logged **twice**: once right before records are read and
+   written, and once right after the write phase finishes (before the summary), so
+   you can spot the migration window in a long log file.
+4. **Progress** -- a compact heartbeat line every `--progress-interval` seconds.
+5. **Summary** -- final counters (scanned, migrated, skipped, errors), timing,
    throughput, and skip/error breakdowns.
 
 Exit codes: `0` success, `1` completed with errors, `2` could not connect. See

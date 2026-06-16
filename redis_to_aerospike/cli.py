@@ -14,6 +14,7 @@ from .config import (
     _parse_set_routes,
 )
 from .converters.registry import ConverterRegistry
+from .log_banners import log_migration_banner
 from .migrator import Migrator
 from .redis_source import RedisSource
 
@@ -528,8 +529,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             logger.info("dry run: no records were written")
             return 0
 
+        log_migration_banner(logger)
         migrator = Migrator(config, source, registry, sink)
         stats = migrator.run()
+        log_migration_banner(logger)
     finally:
         source.close()
         sink.close()

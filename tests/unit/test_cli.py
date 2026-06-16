@@ -1,10 +1,13 @@
 """Smoke tests for the CLI wiring and exit codes."""
 
+import logging
+
 import pytest
 
 import redis_to_aerospike.cli as cli
 from redis_to_aerospike.aerospike_sink import AerospikeServerInfo
 from redis_to_aerospike.config import MigrationConfig
+from redis_to_aerospike.log_banners import BANNER_TITLE
 from redis_to_aerospike.stats import MigrationStats
 
 
@@ -217,6 +220,37 @@ def test_dry_run_skips_migration(monkeypatch):
 
     assert cli.main(["--dry-run"]) == 0
     assert migrator.ran is False
+
+
+def test_dry_run_does_not_log_migration_banner(monkeypatch, caplog):
+    migrator = _fake_migrator(MigrationStats())
+    monkeypatch.setattr(cli, "RedisSource", _FakeSource)
+    monkeypatch.setattr(cli, "AerospikeSink", _FakeSink)
+    monkeypatch.setattr(cli, "Migrator", migrator)
+
+    with caplog.at_level(logging.INFO):
+        cli.main(["--dry-run"])
+
+    assert sum(1 for r in caplog.records if r.getMessage() == BANNER_TITLE) == 0
+
+
+def test_migration_banner_logged_twice_around_run(monkeypatch, caplog):
+    stats = MigrationStats()
+    stats.record_migrated()
+    monkeypatch.setattr(cli, "RedisSource", _FakeSource)
+    monkeypatch.setattr(cli, "AerospikeSink", _FakeSink)
+    monkeypatch.setattr(cli, "Migrator", _fake_migrator(stats))
+
+    with caplog.at_level(logging.INFO):
+        assert cli.main([]) == 0
+
+    title_indices = [i for i, r in enumerate(caplog.records) if r.getMessage() == BANNER_TITLE]
+    assert len(title_indices) == 2
+
+    preview_i = next(i for i, r in enumerate(caplog.records) if "migration preview" in r.getMessage())
+    summary_i = next(i for i, r in enumerate(caplog.records) if "migration summary" in r.getMessage())
+
+    assert preview_i < title_indices[0] < title_indices[1] < summary_i
 
 
 def test_render_preview_includes_source_target_and_estimate():
