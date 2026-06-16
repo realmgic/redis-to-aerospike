@@ -462,13 +462,43 @@ def render_preview(
     return "\n".join(lines)
 
 
+def ttl_migration_blocked_reason(
+    redis_info: Dict[str, Any],
+    aerospike_info: Optional[AerospikeServerInfo],
+) -> Optional[str]:
+    """Return a fatal error message if Redis has expiring keys but Aerospike cannot expire them."""
+    if aerospike_info is None or aerospike_info.nsup_period != 0:
+        return None
+    expires = redis_info.get("expires")
+    if expires is None:
+        return None
+    try:
+        n = int(expires)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    ns = aerospike_info.namespace
+    return (
+        f"Records with TTL cannot be inserted into Aerospike namespace '{ns}': "
+        "TTL eviction is disabled (nsup-period is 0), so the server will never "
+        f"expire keys by TTL. Redis reports {n} key(s) with an expiry. "
+        "Set a non-zero nsup-period on the Aerospike namespace to enable expiration, "
+        "or migrate only keys without TTL."
+    )
+
+
 def apply_server_info(
-    config: MigrationConfig, aerospike_info: Optional[AerospikeServerInfo]
+    config: MigrationConfig,
+    aerospike_info: Optional[AerospikeServerInfo],
+    redis_info: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Use the Aerospike server settings to alert the user and tune the run.
 
     * Warns when the namespace has TTL eviction disabled (``nsup-period == 0``),
-      since any TTLs written by this run will not be enforced.
+      since any TTLs written by this run will not be enforced — unless
+      :func:`ttl_migration_blocked_reason` will abort the run (Redis has keys
+      with TTL), in which case the warning is skipped to avoid duplicate noise.
     * Aligns the sink's max record size with the server's advertised limit so
       oversized records are rejected against the real boundary, not a guess.
     """
@@ -476,11 +506,17 @@ def apply_server_info(
         return
 
     if aerospike_info.nsup_period == 0:
-        logger.warning(
-            "Aerospike namespace '%s' has nsup-period=0 (TTL eviction disabled); "
-            "records written with a TTL will NOT be expired by the server",
-            aerospike_info.namespace,
-        )
+        expires = (redis_info or {}).get("expires")
+        try:
+            has_ttl_keys = expires is not None and int(expires) > 0
+        except (TypeError, ValueError):
+            has_ttl_keys = False
+        if not has_ttl_keys:
+            logger.warning(
+                "Aerospike namespace '%s' has nsup-period=0 (TTL eviction disabled); "
+                "records written with a TTL will NOT be expired by the server",
+                aerospike_info.namespace,
+            )
 
     server_max = aerospike_info.max_record_size
     if server_max and server_max > 0:
@@ -522,7 +558,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         redis_info = source.server_info()
         aerospike_info = sink.server_info()
 
-        apply_server_info(config, aerospike_info)
+        apply_server_info(config, aerospike_info, redis_info)
+        blocked = ttl_migration_blocked_reason(redis_info, aerospike_info)
+        if blocked:
+            logger.error("%s", blocked)
+            return 2
+
         logger.info("\n%s", render_preview(config, redis_info, aerospike_info))
 
         if args.dry_run:

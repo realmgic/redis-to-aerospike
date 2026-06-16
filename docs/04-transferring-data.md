@@ -109,8 +109,9 @@ The tool enforces a boundary before writing:
 ### Will the server actually expire TTLs?
 
 If the target namespace has `nsup-period=0`, **TTL eviction is disabled** and any
-TTLs you write will never be enforced by the server. The tool detects this on
-connect and logs a clear warning. See
+TTLs you write will never be enforced by the server. The tool reads Redis
+`INFO keyspace`: if any keys carry a TTL while `nsup-period` is `0`, the CLI
+**exits with an error** before writing. Otherwise it logs a warning only. See
 [Troubleshooting](06-troubleshooting.md#ttls-are-not-being-expired).
 
 ## Choosing which keys to migrate

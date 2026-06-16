@@ -114,8 +114,11 @@ A `migration preview` block summarizing both sides:
 
 Using what it read from Aerospike, the tool:
 
-- **Warns** when `nsup-period=0` (TTL eviction disabled), since any TTLs written
-  this run would never be enforced.
+- **Warns** when `nsup-period=0` (TTL eviction disabled) *and* Redis does not
+  report keys with TTL — since any TTLs written this run would never be enforced.
+- **Aborts** (exit code `2`) when `nsup-period=0` **and** Redis reports keys with
+  an expiry (`INFO keyspace` `expires` > 0), since those records cannot be
+  meaningfully migrated with working TTL expiration.
 - **Aligns** its max-record-size guard with the server's advertised limit.
 
 ### 3. Progress heartbeat (during the run)

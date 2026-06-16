@@ -97,8 +97,19 @@ Generic server-side write failures (timeouts, capacity, cluster issues). Check:
 ## TTLs are not being expired
 
 If you wrote records with TTLs but the server isn't expiring them, the namespace
-likely has `nsup-period=0` (TTL eviction disabled). The tool warns about this on
-connect:
+likely has `nsup-period=0` (TTL eviction disabled).
+
+Before migrating, the tool reads Redis `INFO keyspace` (keys with an expiry) and
+Aerospike namespace info. If Redis reports one or more keys with a TTL **and** the
+target namespace has `nsup-period=0`, the CLI **aborts** with exit code `2` and a
+message such as:
+
+```
+Records with TTL cannot be inserted into Aerospike namespace 'X': TTL eviction is disabled (nsup-period is 0) ...
+```
+
+If Redis has **no** keys with TTL (or the keyspace stats could not be read), you
+only get a **warning** on connect:
 
 ```
 Aerospike namespace 'X' has nsup-period=0 (TTL eviction disabled); records

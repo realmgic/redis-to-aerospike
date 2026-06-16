@@ -325,6 +325,58 @@ def test_apply_server_info_warns_when_nsup_disabled(caplog):
     assert any("nsup-period=0" in r.message for r in caplog.records)
 
 
+def test_apply_server_info_skips_nsup_warning_when_redis_has_ttl_keys(caplog):
+    """If Redis reports expiring keys, the fatal check handles messaging; avoid duplicate warn."""
+    config = cli.build_config(cli.parse_args([]))
+    info = AerospikeServerInfo(namespace="test", nsup_period=0)
+
+    with caplog.at_level("WARNING", logger="redis_to_aerospike.cli"):
+        cli.apply_server_info(config, info, redis_info={"expires": 3})
+
+    assert not any("nsup-period=0" in r.message for r in caplog.records)
+
+
+def test_ttl_migration_blocked_reason_when_nsup_disabled_and_redis_has_expiring_keys():
+    reason = cli.ttl_migration_blocked_reason(
+        {"expires": 2},
+        AerospikeServerInfo(namespace="ns1", nsup_period=0),
+    )
+    assert reason is not None
+    assert "ns1" in reason
+    assert "nsup-period is 0" in reason
+    assert "2" in reason
+
+
+def test_ttl_migration_blocked_reason_none_when_nsup_active():
+    assert (
+        cli.ttl_migration_blocked_reason(
+            {"expires": 99},
+            AerospikeServerInfo(namespace="ns1", nsup_period=60),
+        )
+        is None
+    )
+
+
+def test_ttl_migration_blocked_reason_none_when_redis_expires_unknown():
+    assert (
+        cli.ttl_migration_blocked_reason(
+            {"keys": 1},
+            AerospikeServerInfo(namespace="ns1", nsup_period=0),
+        )
+        is None
+    )
+
+
+def test_ttl_migration_blocked_reason_none_when_no_expiring_keys():
+    assert (
+        cli.ttl_migration_blocked_reason(
+            {"expires": 0},
+            AerospikeServerInfo(namespace="ns1", nsup_period=0),
+        )
+        is None
+    )
+
+
 def test_apply_server_info_aligns_max_record_size():
     config = cli.build_config(cli.parse_args([]))
     config.aerospike.max_record_size = 8 * 1024 * 1024
