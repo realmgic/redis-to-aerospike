@@ -481,7 +481,7 @@ def ttl_migration_blocked_reason(
     ns = aerospike_info.namespace
     return (
         f"Records with TTL cannot be inserted into Aerospike namespace '{ns}': "
-        "TTL eviction is disabled (nsup-period is 0), so the server will never "
+        "TTL expiration is disabled (nsup-period is 0), so the server will never "
         f"expire keys by TTL. Redis reports {n} key(s) with an expiry. "
         "Set a non-zero nsup-period on the Aerospike namespace to enable expiration, "
         "or migrate only keys without TTL."
