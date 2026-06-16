@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redis-to-aerospike"
+version = "0.1.0"
+description = "Migrate Redis data into Aerospike using native Aerospike types, with a pluggable converter layer and multi-threaded writes."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Zohar Elkayam" }]
+dependencies = [
+    "redis>=7.0,<8.0",
+    "aerospike>=19.2.2,<20.0",
+    "PyYAML>=6.0,<7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4,<9.0",
+    "testcontainers>=4.13,<5.0",
+    "hypothesis>=6.100,<7.0",
+    "fakeredis>=2.21,<3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/realmgic"
+Repository = "https://github.com/realmgic/redis-to-aerospike"
+
+[project.scripts]
+redis-to-aerospike = "redis_to_aerospike.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["redis_to_aerospike*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests that require real Redis and Aerospike instances (deselect with '-m \"not integration\"')",
+]
+testpaths = ["tests"]

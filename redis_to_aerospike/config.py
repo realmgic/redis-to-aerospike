@@ -1,0 +1,438 @@
+"""Configuration objects for the migration.
+
+Everything the app needs is captured in plain dataclasses so the wiring stays
+explicit and easy to test. :meth:`MigrationConfig.from_env` provides a convenient
+way to populate them from environment variables, and the CLI layers argument
+parsing on top.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, List, Optional, Sequence
+
+# Aerospike set names are bounded; keep a conservative client-side limit.
+_MAX_AEROSPIKE_SET_NAME_LEN = 128
+
+
+def _validate_aerospike_set_label(name: str, *, field: str) -> str:
+    """Return a stripped set name or raise ``ValueError``."""
+    if not isinstance(name, str):
+        raise TypeError(f"{field} must be a string")
+    s = name.strip()
+    if not s:
+        raise ValueError(f"{field} must be non-empty")
+    if "\x00" in s:
+        raise ValueError(f"{field} must not contain NUL bytes")
+    if len(s) > _MAX_AEROSPIKE_SET_NAME_LEN:
+        raise ValueError(
+            f"{field} exceeds {_MAX_AEROSPIKE_SET_NAME_LEN} characters "
+            f"(got {len(s)})"
+        )
+    return s
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    """Coerce common truthy/falsey string (or native) values into a bool.
+
+    Accepts ``1/true/yes/on`` (case-insensitive) as true and the corresponding
+    ``0/false/no/off`` as false. ``None`` / empty falls back to ``default``.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text == "":
+        return default
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+def _normalize_hosts(hosts: Any, host: Any, port: Any) -> Optional[List[tuple]]:
+    """Build a ``[(host, port), ...]`` list from YAML-style inputs.
+
+    Supports either a ``hosts`` list (of ``[host, port]`` pairs or mappings with
+    ``host``/``port`` keys) or a single ``host``/``port`` scalar pair. Returns
+    ``None`` when nothing host-related was provided so callers keep their default.
+    """
+    if hosts:
+        normalized: List[tuple] = []
+        for entry in hosts:
+            if isinstance(entry, dict):
+                normalized.append((entry["host"], int(entry.get("port", 3000))))
+            else:
+                addr, p = entry
+                normalized.append((addr, int(p)))
+        return normalized
+    if host is not None:
+        return [(host, int(port) if port is not None else 3000)]
+    return None
+
+
+class HashStrategy(str, Enum):
+    """How a Redis hash should be represented in Aerospike.
+
+    * ``MAP_BIN``    -- store the whole hash as a single Aerospike map (1:1, simplest).
+    * ``FIELD_BINS`` -- store each hash field as its own Aerospike bin (more native).
+    """
+
+    MAP_BIN = "map_bin"
+    FIELD_BINS = "field_bins"
+
+
+# Aerospike's default namespace max-ttl is 10 years (in seconds).
+DEFAULT_MAX_TTL_S = 315_360_000
+
+
+class TtlOverflowPolicy(str, Enum):
+    """What to do when a Redis TTL exceeds the Aerospike max-ttl.
+
+    * ``REJECT``       -- reject the record before writing (the default).
+    * ``CLAMP``        -- store it with exactly the max-ttl, warning once per run.
+    * ``NEVER_EXPIRE`` -- store it as never-expire, warning once per run.
+    """
+
+    REJECT = "reject"
+    CLAMP = "clamp"
+    NEVER_EXPIRE = "never_expire"
+
+
+@dataclass(frozen=True)
+class AerospikeSetRoute:
+    """Maps a Redis key glob (``fnmatch``) to an Aerospike set; first match wins."""
+
+    pattern: str
+    destination: str
+
+
+def _parse_set_routes(raw: Any) -> List[AerospikeSetRoute]:
+    """Build a list of :class:`AerospikeSetRoute` from YAML-style mappings."""
+    if raw is None:
+        return []
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        raise ValueError("set_routes must be a list of mappings")
+    routes: List[AerospikeSetRoute] = []
+    for i, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"set_routes[{i}] must be a mapping")
+        pattern = item.get("pattern")
+        destination = item.get("destination")
+        if pattern is None or destination is None:
+            raise ValueError(
+                f"set_routes[{i}] requires 'pattern' and 'destination' keys"
+            )
+        if not isinstance(pattern, str) or not isinstance(destination, str):
+            raise TypeError(f"set_routes[{i}] pattern and destination must be strings")
+        routes.append(
+            AerospikeSetRoute(
+                pattern=_validate_aerospike_set_label(
+                    pattern, field=f"set_routes[{i}].pattern"
+                ),
+                destination=_validate_aerospike_set_label(
+                    destination, field=f"set_routes[{i}].destination"
+                ),
+            )
+        )
+    return routes
+
+
+@dataclass
+class RedisConfig:
+    """Connection settings for the Redis source."""
+
+    host: str = "localhost"
+    port: int = 6379
+    db: int = 0
+    password: Optional[str] = None
+    # Glob pattern passed to SCAN. ``*`` migrates every key.
+    scan_match: str = "*"
+
+    # --- Authentication (Redis 6+ ACLs) ------------------------------------
+    username: Optional[str] = None
+
+    # --- Connection URL ----------------------------------------------------
+    # When set, it is the sole source of truth for the connection target
+    # (``redis://`` or ``rediss://`` for TLS); discrete host/port/db/auth/ssl
+    # fields are ignored. Socket timeouts still apply.
+    url: Optional[str] = None
+
+    # --- Redis Cluster (sharded) -------------------------------------------
+    # Use the cluster client + cluster-aware scanning. A single host/port (or
+    # url) is enough to seed topology discovery; cluster mode always uses db 0.
+    cluster: bool = False
+
+    # --- TLS ---------------------------------------------------------------
+    ssl: bool = False
+    ssl_ca_certs: Optional[str] = None
+    ssl_certfile: Optional[str] = None
+    ssl_keyfile: Optional[str] = None
+    # One of: required, optional, none.
+    ssl_cert_reqs: Optional[str] = None
+
+    # --- Timeouts (seconds; redis-py convention) ---------------------------
+    socket_timeout: Optional[float] = None
+    socket_connect_timeout: Optional[float] = None
+
+    @classmethod
+    def from_env(cls, env: Optional[dict] = None) -> "RedisConfig":
+        env = os.environ if env is None else env
+
+        def as_float(name: str) -> Optional[float]:
+            value = env.get(name)
+            return float(value) if value not in (None, "") else None
+
+        return cls(
+            host=env.get("REDIS_HOST", cls.host),
+            port=int(env.get("REDIS_PORT", cls.port)),
+            db=int(env.get("REDIS_DB", cls.db)),
+            password=env.get("REDIS_PASSWORD") or None,
+            scan_match=env.get("REDIS_SCAN_MATCH", cls.scan_match),
+            username=env.get("REDIS_USERNAME") or None,
+            url=env.get("REDIS_URL") or None,
+            cluster=_as_bool(env.get("REDIS_CLUSTER"), cls.cluster),
+            ssl=_as_bool(env.get("REDIS_SSL"), cls.ssl),
+            ssl_ca_certs=env.get("REDIS_SSL_CA_CERTS") or None,
+            ssl_certfile=env.get("REDIS_SSL_CERTFILE") or None,
+            ssl_keyfile=env.get("REDIS_SSL_KEYFILE") or None,
+            ssl_cert_reqs=env.get("REDIS_SSL_CERT_REQS") or None,
+            socket_timeout=as_float("REDIS_SOCKET_TIMEOUT"),
+            socket_connect_timeout=as_float("REDIS_SOCKET_CONNECT_TIMEOUT"),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "RedisConfig":
+        """Overlay the keys present in ``data`` onto the dataclass defaults."""
+        cfg = cls()
+        if not data:
+            return cfg
+        data = dict(data)
+        # Optional YAML alias: key_pattern sets scan_match when scan_match is absent.
+        if "key_pattern" in data and "scan_match" not in data:
+            data["scan_match"] = data.pop("key_pattern")
+        elif "key_pattern" in data:
+            data.pop("key_pattern")
+        for key, value in data.items():
+            if hasattr(cfg, key):
+                setattr(cfg, key, value)
+        return cfg
+
+
+@dataclass
+class AerospikeConfig:
+    """Connection settings and key placement for the Aerospike sink."""
+
+    # List of (host, port) tuples. Defaults to a single local node.
+    hosts: List[tuple] = field(default_factory=lambda: [("localhost", 3000)])
+    namespace: str = "test"
+    set_name: str = "redis"
+    # Bin used for single-value records (strings, lists, sets, sorted sets, and
+    # the map-bin hash strategy).
+    value_bin: str = "value"
+    # Records whose estimated payload exceeds this many bytes are rejected
+    # before being sent to the server. Aerospike's maximum object size is 8 MiB.
+    max_record_size: int = 8 * 1024 * 1024
+    # Maximum record TTL in seconds. Defaults to Aerospike's 10-year max-ttl.
+    # Set to 0 to disable the boundary check entirely.
+    max_ttl: int = DEFAULT_MAX_TTL_S
+
+    # --- Authentication (Enterprise security-enabled clusters) -------------
+    username: Optional[str] = None
+    password: Optional[str] = None
+    # One of: internal, external, external_insecure, pki. None uses the client
+    # default (internal). Mapped to aerospike.AUTH_* constants at connect time.
+    auth_mode: Optional[str] = None
+
+    # --- TLS ----------------------------------------------------------------
+    tls_enable: bool = False
+    # The certificate subject name presented by the server; applied as the 3rd
+    # element of each host tuple when set.
+    tls_name: Optional[str] = None
+    tls_cafile: Optional[str] = None
+    # Mutual TLS: client certificate + key.
+    tls_certfile: Optional[str] = None
+    tls_keyfile: Optional[str] = None
+    tls_keyfile_pw: Optional[str] = None
+
+    # --- Timeouts (milliseconds; 0 = client default / no timeout) ----------
+    socket_timeout_ms: int = 0
+    total_timeout_ms: int = 0
+    connect_timeout_ms: int = 1000
+    login_timeout_ms: int = 5000
+
+    # --- Misc connection knobs ---------------------------------------------
+    # Use the server's alternate-access address (NAT / cloud / Docker).
+    use_services_alternate: bool = False
+    # Store the primary key alongside the record (POLICY_KEY_SEND).
+    send_key: bool = False
+
+    # Ordered glob routes: first pattern match sends the record to ``destination``.
+    # Keys that match none use ``set_name``. Does not change Redis SCAN behavior.
+    set_routes: List[AerospikeSetRoute] = field(default_factory=list)
+
+    @classmethod
+    def from_env(cls, env: Optional[dict] = None) -> "AerospikeConfig":
+        env = os.environ if env is None else env
+        host = env.get("AEROSPIKE_HOST", "localhost")
+        port = int(env.get("AEROSPIKE_PORT", 3000))
+        return cls(
+            hosts=[(host, port)],
+            namespace=env.get("AEROSPIKE_NAMESPACE", cls.namespace),
+            set_name=env.get("AEROSPIKE_SET", cls.set_name),
+            value_bin=env.get("AEROSPIKE_VALUE_BIN", cls.value_bin),
+            max_record_size=int(env.get("AEROSPIKE_MAX_RECORD_SIZE", cls.max_record_size)),
+            max_ttl=int(env.get("AEROSPIKE_MAX_TTL", cls.max_ttl)),
+            username=env.get("AEROSPIKE_USERNAME") or None,
+            password=env.get("AEROSPIKE_PASSWORD") or None,
+            auth_mode=env.get("AEROSPIKE_AUTH_MODE") or None,
+            tls_enable=_as_bool(env.get("AEROSPIKE_TLS_ENABLE"), cls.tls_enable),
+            tls_name=env.get("AEROSPIKE_TLS_NAME") or None,
+            tls_cafile=env.get("AEROSPIKE_TLS_CAFILE") or None,
+            tls_certfile=env.get("AEROSPIKE_TLS_CERTFILE") or None,
+            tls_keyfile=env.get("AEROSPIKE_TLS_KEYFILE") or None,
+            tls_keyfile_pw=env.get("AEROSPIKE_TLS_KEYFILE_PW") or None,
+            socket_timeout_ms=int(env.get("AEROSPIKE_SOCKET_TIMEOUT_MS", cls.socket_timeout_ms)),
+            total_timeout_ms=int(env.get("AEROSPIKE_TOTAL_TIMEOUT_MS", cls.total_timeout_ms)),
+            connect_timeout_ms=int(env.get("AEROSPIKE_CONNECT_TIMEOUT_MS", cls.connect_timeout_ms)),
+            login_timeout_ms=int(env.get("AEROSPIKE_LOGIN_TIMEOUT_MS", cls.login_timeout_ms)),
+            use_services_alternate=_as_bool(
+                env.get("AEROSPIKE_USE_SERVICES_ALTERNATE"), cls.use_services_alternate
+            ),
+            send_key=_as_bool(env.get("AEROSPIKE_SEND_KEY"), cls.send_key),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "AerospikeConfig":
+        """Overlay the keys present in ``data`` onto the dataclass defaults.
+
+        Accepts either a single ``host``/``port`` pair or a ``hosts`` list of
+        ``[host, port]`` entries. Missing keys keep their default value, so a
+        partial document is valid.
+        """
+        cfg = cls()
+        if not data:
+            return cfg
+        data = dict(data)
+
+        hosts = _normalize_hosts(data.pop("hosts", None), data.pop("host", None), data.pop("port", None))
+        if hosts is not None:
+            cfg.hosts = hosts
+
+        if "set_routes" in data:
+            cfg.set_routes = _parse_set_routes(data.pop("set_routes"))
+
+        for key, value in data.items():
+            if hasattr(cfg, key):
+                setattr(cfg, key, value)
+        return cfg
+
+
+@dataclass
+class MigrationConfig:
+    """Tuning knobs for the migration pipeline itself."""
+
+    redis: RedisConfig = field(default_factory=RedisConfig)
+    aerospike: AerospikeConfig = field(default_factory=AerospikeConfig)
+    # Number of worker threads writing to Aerospike.
+    workers: int = 8
+    # Number of keys fetched per SCAN round-trip.
+    scan_batch: int = 500
+    # Bounded work queue size; provides back-pressure on the producer.
+    queue_size: int = 10_000
+    # Optional rate limits in records/sec; 0 disables throttling.
+    # scan_rate_limit caps how fast records are pulled from Redis (throttles
+    # SCAN); write_rate_limit caps the aggregate insert rate into Aerospike
+    # across all worker threads.
+    scan_rate_limit: float = 0
+    write_rate_limit: float = 0
+    # Records per Aerospike batch_write. <= 1 keeps the single-write path
+    # (one put/operate per record); > 1 flushes records in batches.
+    write_batch_size: int = 1
+    hash_strategy: HashStrategy = HashStrategy.MAP_BIN
+    # How to handle records whose TTL exceeds aerospike.max_ttl.
+    ttl_overflow_policy: TtlOverflowPolicy = TtlOverflowPolicy.REJECT
+    # Seconds between progress heartbeat log lines. 0 disables the heartbeat.
+    progress_interval: float = 10.0
+
+    @classmethod
+    def from_env(cls, env: Optional[dict] = None) -> "MigrationConfig":
+        env = os.environ if env is None else env
+        return cls(
+            redis=RedisConfig.from_env(env),
+            aerospike=AerospikeConfig.from_env(env),
+            workers=int(env.get("MIGRATION_WORKERS", cls.workers)),
+            scan_batch=int(env.get("MIGRATION_SCAN_BATCH", cls.scan_batch)),
+            queue_size=int(env.get("MIGRATION_QUEUE_SIZE", cls.queue_size)),
+            scan_rate_limit=float(
+                env.get("MIGRATION_SCAN_RATE_LIMIT", cls.scan_rate_limit)
+            ),
+            write_rate_limit=float(
+                env.get("MIGRATION_WRITE_RATE_LIMIT", cls.write_rate_limit)
+            ),
+            write_batch_size=int(
+                env.get("MIGRATION_WRITE_BATCH_SIZE", cls.write_batch_size)
+            ),
+            hash_strategy=HashStrategy(
+                env.get("MIGRATION_HASH_STRATEGY", cls.hash_strategy.value)
+            ),
+            ttl_overflow_policy=TtlOverflowPolicy(
+                env.get("MIGRATION_TTL_OVERFLOW_POLICY", cls.ttl_overflow_policy.value)
+            ),
+            progress_interval=float(
+                env.get("MIGRATION_PROGRESS_INTERVAL", cls.progress_interval)
+            ),
+        )
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "MigrationConfig":
+        """Build a config from a nested mapping (e.g. a parsed YAML document).
+
+        Only the keys present in ``data`` override the dataclass defaults, so a
+        partial document is valid. The ``redis`` and ``aerospike`` sub-sections
+        are delegated to their own ``from_dict``; enum-valued pipeline knobs are
+        coerced from their string values.
+        """
+        cfg = cls()
+        if not data:
+            return cfg
+        data = dict(data)
+
+        cfg.redis = RedisConfig.from_dict(data.pop("redis", None))
+        cfg.aerospike = AerospikeConfig.from_dict(data.pop("aerospike", None))
+
+        if "hash_strategy" in data:
+            cfg.hash_strategy = HashStrategy(data.pop("hash_strategy"))
+        if "ttl_overflow_policy" in data:
+            cfg.ttl_overflow_policy = TtlOverflowPolicy(data.pop("ttl_overflow_policy"))
+
+        for key, value in data.items():
+            if hasattr(cfg, key):
+                setattr(cfg, key, value)
+        return cfg
+
+    @classmethod
+    def from_yaml(cls, path: str) -> "MigrationConfig":
+        """Load configuration from a YAML file.
+
+        PyYAML is imported lazily so the package remains importable without it;
+        a clear error is raised if a config file is requested but PyYAML is not
+        installed.
+        """
+        try:
+            import yaml
+        except ImportError as exc:  # pragma: no cover - depends on environment
+            raise RuntimeError(
+                "PyYAML is required to load a --config file; install it with "
+                "'pip install PyYAML'"
+            ) from exc
+
+        with open(path, "r", encoding="utf-8") as handle:
+            data = yaml.safe_load(handle)
+        if data is not None and not isinstance(data, dict):
+            raise ValueError(f"config file {path!r} must contain a YAML mapping at the top level")
+        return cls.from_dict(data)

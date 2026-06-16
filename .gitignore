@@ -1,0 +1,24 @@
+# Virtual environments
+.venv/
+.venv*/
+venv/
+
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Test / coverage / type-checker caches
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs and editor
+pytest*.log
+*.log
+.cursor/
