@@ -27,10 +27,13 @@ it is counted and the migration keeps going.
 | Redis type | Aerospike representation |
 | --- | --- |
 | **String** | A single bin, coerced in order: `int` -> `float` -> `str` -> `bytes` (blob). The first type that fits is used. |
-| **Hash** | One Map bin by default, or one bin per field with `--hash-strategy field_bins`. |
+| **Hash** | One **key-ordered** Map bin by default (`MAP_KEY_ORDERED`), or one bin per field with `--hash-strategy field_bins`. |
 | **List** | An Aerospike List, with order preserved. |
 | **Set** | An Aerospike List written with the `ADD_UNIQUE` flag (ordered), so set semantics are enforced server-side. |
-| **Sorted set** | An Aerospike Map of `{member: score}`. |
+| **Sorted set** | A **key-ordered** Aerospike Map of `{member: score}` (`MAP_KEY_ORDERED`). |
+
+Map bins use the Aerospike Python client’s ``KeyOrderedDict`` so they serialize as
+``MAP_KEY_ORDERED`` rather than the default unordered CDT map.
 
 The Aerospike record identity is ``(namespace, set, primary_key)``. UTF-8 keys
 are stored as strings; binary keys are preserved as-is. With **set routes**,

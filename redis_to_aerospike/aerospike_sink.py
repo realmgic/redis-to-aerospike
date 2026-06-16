@@ -227,6 +227,25 @@ class AerospikeSink:
         set_name = record.set_name or self._config.set_name
         return (self._config.namespace, set_name, record.key)
 
+    def _encode_bin_value_for_write(self, value: Any) -> Any:
+        """Serialize plain Python dicts as Aerospike key-ordered maps (CDT).
+
+        Unordered maps are the default when a dict is written blindly; the
+        client encodes :class:`aerospike.KeyOrderedDict` as ``MAP_KEY_ORDERED``,
+        which matches how Redis hashes and sorted sets are represented here and
+        avoids unordered-map pitfalls on newer servers.
+        """
+        if not isinstance(value, dict):
+            return value
+        aerospike = self._aero()
+        kod = getattr(aerospike, "KeyOrderedDict", None)
+        if kod is not None and not isinstance(value, kod):
+            return kod(dict(value))
+        return value
+
+    def _encode_bins_for_write(self, bins: Dict[str, Any]) -> Dict[str, Any]:
+        return {name: self._encode_bin_value_for_write(v) for name, v in bins.items()}
+
     @staticmethod
     def _policy(record: AerospikeRecord) -> Dict[str, int]:
         # TTL is set via the write/operate policy. The legacy meta["ttl"] was
@@ -292,7 +311,11 @@ class AerospikeSink:
         }
 
         if not unique_bins:
-            self._client.put(self._key(record), record.bins, policy=self._policy(record))
+            self._client.put(
+                self._key(record),
+                self._encode_bins_for_write(record.bins),
+                policy=self._policy(record),
+            )
             return
 
         self._client.operate(
@@ -403,7 +426,10 @@ class AerospikeSink:
         if not unique_bins:
             from aerospike_helpers.operations import operations
 
-            return [operations.write(name, value) for name, value in record.bins.items()]
+            return [
+                operations.write(name, self._encode_bin_value_for_write(value))
+                for name, value in record.bins.items()
+            ]
         return self._build_ops(record, unique_bins)
 
     def _build_ops(self, record: AerospikeRecord, unique_bins: Dict[str, Any]) -> List[dict]:
@@ -429,5 +455,5 @@ class AerospikeSink:
                 ops.append(operations.write(name, []))
                 ops.append(list_operations.list_append_items(name, list(value), list_policy))
             else:
-                ops.append(operations.write(name, value))
+                ops.append(operations.write(name, self._encode_bin_value_for_write(value)))
         return ops

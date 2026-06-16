@@ -26,10 +26,10 @@ pattern (see [Transferring data](docs/04-transferring-data.md)); otherwise
 | Redis type | Aerospike representation |
 | --- | --- |
 | String | Single bin, coerced to `int` -> `float` -> `str` -> `bytes` (blob). |
-| Hash | One Map bin (default), or one bin per field (`--hash-strategy field_bins`). |
+| Hash | One **key-ordered** Map bin (default, `MAP_KEY_ORDERED`), or one bin per field (`--hash-strategy field_bins`). |
 | List | Aerospike List (order preserved). |
 | Set | Aerospike List written with the `ADD_UNIQUE` flag (ordered), enforcing set semantics. |
-| Sorted Set | Aerospike Map of `{member: score}`. |
+| Sorted Set | **Key-ordered** Aerospike Map (`MAP_KEY_ORDERED`) of `{member: score}`. |
 | TTL | Redis ms TTL -> Aerospike second TTL; no expiry -> never-expire. |
 
 Only these types are migrated; other types (e.g. Streams) are skipped and counted

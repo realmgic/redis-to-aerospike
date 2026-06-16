@@ -40,7 +40,16 @@ def test_plain_record_uses_put_with_key_bins_and_ttl(fake_aero_client):
     key, bins, policy = fake_aero_client.puts[0]
     assert key == ("test", "redis", "k")
     assert bins == {"value": 42}
-    # TTL is now carried in the write policy, not meta.
+    assert policy == {"ttl": 3}
+
+
+def test_dict_bin_put_wraps_key_ordered_dict(fake_aerospike, fake_aero_client):
+    sink = make_sink(fake_aero_client)
+    sink.write(AerospikeRecord(key="k", bins={"value": {"a": 1, "b": 2}}, ttl_s=3))
+
+    _, bins, policy = fake_aero_client.puts[0]
+    assert isinstance(bins["value"], fake_aerospike.KeyOrderedDict)
+    assert dict(bins["value"]) == {"a": 1, "b": 2}
     assert policy == {"ttl": 3}
 
 
@@ -108,6 +117,21 @@ def test_mixed_bins_emit_write_and_unique_ops(fake_aerospike, fake_aero_client):
     assert ("list_append_items", "value") in op_kinds
 
 
+def test_mixed_unique_list_and_map_bin_wraps_map_as_key_ordered(fake_aerospike, fake_aero_client):
+    sink = make_sink(fake_aero_client)
+    record = AerospikeRecord(
+        key="k",
+        bins={"tags": ["x"], "meta": {"role": "admin"}},
+        bin_policies={"tags": BinWritePolicy.UNIQUE_LIST},
+    )
+    sink.write(record)
+
+    _, ops, _ = fake_aero_client.operates[0]
+    meta_writes = [o for o in ops if o["op"] == "write" and o["bin"] == "meta"]
+    assert len(meta_writes) == 1
+    assert isinstance(meta_writes[0]["val"], fake_aerospike.KeyOrderedDict)
+
+
 def test_write_before_connect_raises():
     sink = AerospikeSink(AerospikeConfig())  # no client injected
     with pytest.raises(RuntimeError):
@@ -151,6 +175,15 @@ def test_size_estimate_covers_nested_collections():
 
 
 # --- batch writes (write_many) ---------------------------------------------
+
+def test_write_many_dict_bin_uses_key_ordered_dict(fake_aerospike, fake_aero_client):
+    sink = make_sink(fake_aero_client)
+    sink.write_many([AerospikeRecord(key="k", bins={"value": {"z": 0}})])
+
+    ops = fake_aero_client.batches[0].batch_records[0].ops
+    assert ops[0]["op"] == "write"
+    assert isinstance(ops[0]["val"], fake_aerospike.KeyOrderedDict)
+
 
 def test_write_many_builds_one_write_per_record_with_own_ttl(fake_aerospike, fake_aero_client):
     sink = make_sink(fake_aero_client)

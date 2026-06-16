@@ -52,7 +52,11 @@ def fake_aerospike(monkeypatch):
     The operation helpers return plain dicts so tests can assert on the exact
     operations the sink builds, with no native client required.
     """
+    class KeyOrderedDict(dict):
+        """Mirrors :class:`aerospike.KeyOrderedDict` for sink unit tests."""
+
     aero = types.ModuleType("aerospike")
+    aero.KeyOrderedDict = KeyOrderedDict
     aero.LIST_ORDERED = 1
     aero.LIST_WRITE_ADD_UNIQUE = 1
     aero.LIST_WRITE_NO_FAIL = 4
