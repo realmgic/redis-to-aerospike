@@ -129,8 +129,8 @@ non-zero `nsup-period` on the namespace for TTL eviction to run.
 - **Wrong auth mode**: external identity providers need
   `--aerospike-auth-mode external` (or `external_insecure` / `pki`), not the
   default `internal`.
-- **Redis username with no flag**: there is no `--redis-username` flag; set the
-  ACL username in YAML (`username:`) or via `REDIS_USERNAME`.
+- **Redis ACL username**: set it with `--redis-username`, YAML (`username:`), or
+  `REDIS_USERNAME`.
 
 ## Reading the breakdown to find the dominant problem
 

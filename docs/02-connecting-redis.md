@@ -14,11 +14,11 @@ run the end-to-end suite against Valkey in Docker.
 
 Only the most common Redis settings are exposed as command-line flags:
 
-- `--redis-host`, `--redis-port`, `--redis-db`, `--redis-password`, `--redis-match`
+- `--redis-host`, `--redis-port`, `--redis-db`, `--redis-username`, `--redis-password`, `--redis-match`
 
-**Everything else** -- username/ACL, connection URLs, Redis Cluster, and TLS --
-must be supplied through a **YAML config file** (`--config`) or **`REDIS_*`
-environment variables**. Each option below notes how it can be set.
+**Everything else** -- connection URLs, Redis Cluster, and TLS -- must be supplied
+through a **YAML config file** (`--config`) or **`REDIS_*` environment variables**.
+Each option below notes how it can be set.
 
 ## Basic connection
 
@@ -39,7 +39,7 @@ redis-to-aerospike \
 | Setting | CLI flag | YAML key | Env var | Notes |
 | --- | --- | --- | --- | --- |
 | Password | `--redis-password` | `password` | `REDIS_PASSWORD` | Legacy `AUTH` or ACL password. |
-| Username | *(none)* | `username` | `REDIS_USERNAME` | Redis 6+ ACL user. **No CLI flag** -- use YAML or env. |
+| Username | `--redis-username` | `username` | `REDIS_USERNAME` | Redis 6+ ACL user. |
 
 Password-only (legacy `requirepass`):
 

@@ -162,12 +162,6 @@ class RedisConfig:
     host: str = "localhost"
     port: int = 6379
     db: int = 0
-    password: Optional[str] = None
-    # Glob pattern passed to SCAN. ``*`` migrates every key.
-    scan_match: str = "*"
-
-    # --- Authentication (Redis 6+ ACLs) ------------------------------------
-    username: Optional[str] = None
 
     # --- Connection URL ----------------------------------------------------
     # When set, it is the sole source of truth for the connection target
@@ -179,6 +173,10 @@ class RedisConfig:
     # Use the cluster client + cluster-aware scanning. A single host/port (or
     # url) is enough to seed topology discovery; cluster mode always uses db 0.
     cluster: bool = False
+
+    # --- Authentication (Redis 6+ ACLs) ------------------------------------
+    username: Optional[str] = None
+    password: Optional[str] = None
 
     # --- TLS ---------------------------------------------------------------
     ssl: bool = False
@@ -192,6 +190,9 @@ class RedisConfig:
     socket_timeout: Optional[float] = None
     socket_connect_timeout: Optional[float] = None
 
+    # Glob pattern passed to SCAN. ``*`` migrates every key.
+    scan_match: str = "*"
+
     @classmethod
     def from_env(cls, env: Optional[dict] = None) -> "RedisConfig":
         env = os.environ if env is None else env
@@ -204,11 +205,10 @@ class RedisConfig:
             host=env.get("REDIS_HOST", cls.host),
             port=int(env.get("REDIS_PORT", cls.port)),
             db=int(env.get("REDIS_DB", cls.db)),
-            password=env.get("REDIS_PASSWORD") or None,
-            scan_match=env.get("REDIS_SCAN_MATCH", cls.scan_match),
-            username=env.get("REDIS_USERNAME") or None,
             url=env.get("REDIS_URL") or None,
             cluster=_as_bool(env.get("REDIS_CLUSTER"), cls.cluster),
+            username=env.get("REDIS_USERNAME") or None,
+            password=env.get("REDIS_PASSWORD") or None,
             ssl=_as_bool(env.get("REDIS_SSL"), cls.ssl),
             ssl_ca_certs=env.get("REDIS_SSL_CA_CERTS") or None,
             ssl_certfile=env.get("REDIS_SSL_CERTFILE") or None,
@@ -216,6 +216,7 @@ class RedisConfig:
             ssl_cert_reqs=env.get("REDIS_SSL_CERT_REQS") or None,
             socket_timeout=as_float("REDIS_SOCKET_TIMEOUT"),
             socket_connect_timeout=as_float("REDIS_SOCKET_CONNECT_TIMEOUT"),
+            scan_match=env.get("REDIS_SCAN_MATCH", cls.scan_match),
         )
 
     @classmethod
@@ -242,17 +243,8 @@ class AerospikeConfig:
 
     # List of (host, port) tuples. Defaults to a single local node.
     hosts: List[tuple] = field(default_factory=lambda: [("localhost", 3000)])
-    namespace: str = "test"
-    set_name: str = "redis"
-    # Bin used for single-value records (strings, lists, sets, sorted sets, and
-    # the map-bin hash strategy).
-    value_bin: str = "value"
-    # Records whose estimated payload exceeds this many bytes are rejected
-    # before being sent to the server. Aerospike's maximum object size is 8 MiB.
-    max_record_size: int = 8 * 1024 * 1024
-    # Maximum record TTL in seconds. Defaults to Aerospike's 10-year max-ttl.
-    # Set to 0 to disable the boundary check entirely.
-    max_ttl: int = DEFAULT_MAX_TTL_S
+    # Use the server's alternate-access address (NAT / cloud / Docker).
+    use_services_alternate: bool = False
 
     # --- Authentication (Enterprise security-enabled clusters) -------------
     username: Optional[str] = None
@@ -278,18 +270,26 @@ class AerospikeConfig:
     connect_timeout_ms: int = 1000
     login_timeout_ms: int = 5000
 
-    # --- Misc connection knobs ---------------------------------------------
-    # Use the server's alternate-access address (NAT / cloud / Docker).
-    use_services_alternate: bool = False
-    # Store the primary key alongside the record (POLICY_KEY_SEND).
-    send_key: bool = False
-
+    namespace: str = "test"
+    set_name: str = "redis"
     # Ordered glob routes: first pattern match sends the record to ``destination``.
     # Keys that match none use ``set_name``. Does not change Redis SCAN behavior.
     set_routes: List[AerospikeSetRoute] = field(default_factory=list)
+    # Bin used for single-value records (strings, lists, sets, sorted sets, and
+    # the map-bin hash strategy).
+    value_bin: str = "value"
 
+    # Store the primary key alongside the record (POLICY_KEY_SEND).
+    send_key: bool = False
     # When a record already exists: merge (update), full replace, or create-only.
     record_exists_policy: RecordExistsPolicy = RecordExistsPolicy.UPDATE
+
+    # Records whose estimated payload exceeds this many bytes are rejected
+    # before being sent to the server. Aerospike's maximum object size is 8 MiB.
+    max_record_size: int = 8 * 1024 * 1024
+    # Maximum record TTL in seconds. Defaults to Aerospike's 10-year max-ttl.
+    # Set to 0 to disable the boundary check entirely.
+    max_ttl: int = DEFAULT_MAX_TTL_S
 
     @classmethod
     def from_env(cls, env: Optional[dict] = None) -> "AerospikeConfig":
@@ -298,11 +298,9 @@ class AerospikeConfig:
         port = int(env.get("AEROSPIKE_PORT", 3000))
         return cls(
             hosts=[(host, port)],
-            namespace=env.get("AEROSPIKE_NAMESPACE", cls.namespace),
-            set_name=env.get("AEROSPIKE_SET", cls.set_name),
-            value_bin=env.get("AEROSPIKE_VALUE_BIN", cls.value_bin),
-            max_record_size=int(env.get("AEROSPIKE_MAX_RECORD_SIZE", cls.max_record_size)),
-            max_ttl=int(env.get("AEROSPIKE_MAX_TTL", cls.max_ttl)),
+            use_services_alternate=_as_bool(
+                env.get("AEROSPIKE_USE_SERVICES_ALTERNATE"), cls.use_services_alternate
+            ),
             username=env.get("AEROSPIKE_USERNAME") or None,
             password=env.get("AEROSPIKE_PASSWORD") or None,
             auth_mode=env.get("AEROSPIKE_AUTH_MODE") or None,
@@ -316,13 +314,15 @@ class AerospikeConfig:
             total_timeout_ms=int(env.get("AEROSPIKE_TOTAL_TIMEOUT_MS", cls.total_timeout_ms)),
             connect_timeout_ms=int(env.get("AEROSPIKE_CONNECT_TIMEOUT_MS", cls.connect_timeout_ms)),
             login_timeout_ms=int(env.get("AEROSPIKE_LOGIN_TIMEOUT_MS", cls.login_timeout_ms)),
-            use_services_alternate=_as_bool(
-                env.get("AEROSPIKE_USE_SERVICES_ALTERNATE"), cls.use_services_alternate
-            ),
+            namespace=env.get("AEROSPIKE_NAMESPACE", cls.namespace),
+            set_name=env.get("AEROSPIKE_SET", cls.set_name),
+            value_bin=env.get("AEROSPIKE_VALUE_BIN", cls.value_bin),
             send_key=_as_bool(env.get("AEROSPIKE_SEND_KEY"), cls.send_key),
             record_exists_policy=RecordExistsPolicy(
                 env.get("AEROSPIKE_RECORD_EXISTS_POLICY", cls.record_exists_policy.value)
             ),
+            max_record_size=int(env.get("AEROSPIKE_MAX_RECORD_SIZE", cls.max_record_size)),
+            max_ttl=int(env.get("AEROSPIKE_MAX_TTL", cls.max_ttl)),
         )
 
     @classmethod

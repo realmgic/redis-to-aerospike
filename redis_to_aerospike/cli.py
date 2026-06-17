@@ -29,11 +29,10 @@ _ARG_MAP: Dict[str, tuple] = {
     "redis_host": ("redis", "host", None),
     "redis_port": ("redis", "port", None),
     "redis_db": ("redis", "db", None),
-    "redis_password": ("redis", "password", None),
-    "redis_match": ("redis", "scan_match", None),
-    "redis_username": ("redis", "username", None),
     "redis_url": ("redis", "url", None),
     "redis_cluster": ("redis", "cluster", None),
+    "redis_username": ("redis", "username", None),
+    "redis_password": ("redis", "password", None),
     "redis_ssl": ("redis", "ssl", None),
     "redis_ssl_ca_certs": ("redis", "ssl_ca_certs", None),
     "redis_ssl_certfile": ("redis", "ssl_certfile", None),
@@ -41,10 +40,8 @@ _ARG_MAP: Dict[str, tuple] = {
     "redis_ssl_cert_reqs": ("redis", "ssl_cert_reqs", None),
     "redis_socket_timeout": ("redis", "socket_timeout", None),
     "redis_socket_connect_timeout": ("redis", "socket_connect_timeout", None),
-    "aerospike_namespace": ("aerospike", "namespace", None),
-    "aerospike_set": ("aerospike", "set_name", None),
-    "value_bin": ("aerospike", "value_bin", None),
-    "max_ttl": ("aerospike", "max_ttl", None),
+    "redis_match": ("redis", "scan_match", None),
+    "aerospike_use_services_alternate": ("aerospike", "use_services_alternate", None),
     "aerospike_username": ("aerospike", "username", None),
     "aerospike_password": ("aerospike", "password", None),
     "aerospike_auth_mode": ("aerospike", "auth_mode", None),
@@ -58,9 +55,12 @@ _ARG_MAP: Dict[str, tuple] = {
     "aerospike_total_timeout_ms": ("aerospike", "total_timeout_ms", None),
     "aerospike_connect_timeout_ms": ("aerospike", "connect_timeout_ms", None),
     "aerospike_login_timeout_ms": ("aerospike", "login_timeout_ms", None),
-    "aerospike_use_services_alternate": ("aerospike", "use_services_alternate", None),
+    "aerospike_namespace": ("aerospike", "namespace", None),
+    "aerospike_set": ("aerospike", "set_name", None),
+    "value_bin": ("aerospike", "value_bin", None),
     "aerospike_send_key": ("aerospike", "send_key", None),
     "aerospike_record_exists_policy": ("aerospike", "record_exists_policy", RecordExistsPolicy),
+    "max_ttl": ("aerospike", "max_ttl", None),
     "workers": (None, "workers", None),
     "scan_batch": (None, "scan_batch", None),
     "queue_size": (None, "queue_size", None),
@@ -146,15 +146,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     redis.add_argument("--redis-host", default=sup, help="default: localhost")
     redis.add_argument("--redis-port", type=int, default=sup, help="default: 6379")
     redis.add_argument("--redis-db", type=int, default=sup, help="default: 0 (ignored for cluster)")
-    redis.add_argument("--redis-password", default=sup)
-    redis.add_argument("--redis-match", default=sup, help="SCAN match pattern (default: *)")
-    redis.add_argument(
-        "--redis-key-pattern",
-        default=sup,
-        dest="redis_key_pattern",
-        help="alias for --redis-match: Redis SCAN source filter (same as redis.scan_match in YAML)",
-    )
-    redis.add_argument("--redis-username", default=sup, help="ACL username (Redis 6+)")
     redis.add_argument(
         "--redis-url",
         default=sup,
@@ -167,6 +158,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=sup,
         help="connect to a Redis Cluster (sharded) and scan every shard; uses db 0",
     )
+    redis.add_argument("--redis-username", default=sup, help="ACL username (Redis 6+)")
+    redis.add_argument("--redis-password", default=sup)
     redis.add_argument("--redis-ssl", action="store_true", default=sup, help="enable TLS")
     redis.add_argument("--redis-ssl-ca-certs", default=sup, help="TLS CA certificate file")
     redis.add_argument("--redis-ssl-certfile", default=sup, help="mutual TLS: client certificate file")
@@ -186,35 +179,22 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=sup,
         help="socket connect timeout in seconds",
     )
+    redis.add_argument("--redis-match", default=sup, help="SCAN match pattern (default: *)")
+    redis.add_argument(
+        "--redis-key-pattern",
+        default=sup,
+        dest="redis_key_pattern",
+        help="alias for --redis-match: Redis SCAN source filter (same as redis.scan_match in YAML)",
+    )
 
     aero = parser.add_argument_group("Aerospike sink")
     aero.add_argument("--aerospike-host", default=sup, help="default: localhost")
     aero.add_argument("--aerospike-port", type=int, default=sup, help="default: 3000")
-    aero.add_argument("--aerospike-namespace", default=sup, help="default: test")
-    aero.add_argument("--aerospike-set", default=sup, help="default: redis")
     aero.add_argument(
-        "--set-route",
-        action="append",
-        type=_parse_set_route_cli,
+        "--aerospike-use-services-alternate",
+        action="store_true",
         default=sup,
-        metavar="PATTERN=SET",
-        help="glob match on Redis key -> Aerospike set (repeatable; first match wins; "
-        "unmatched keys use --aerospike-set)",
-    )
-    aero.add_argument(
-        "--value-bin", default=sup, help="bin name for single-value records (default: value)"
-    )
-    aero.add_argument(
-        "--max-ttl",
-        type=int,
-        default=sup,
-        help="max record TTL in seconds (default: 10 years); 0 disables the check",
-    )
-    aero.add_argument(
-        "--ttl-overflow-policy",
-        choices=[p.value for p in TtlOverflowPolicy],
-        default=sup,
-        help="how to handle TTLs above --max-ttl: reject (default), clamp, or never_expire",
+        help="use the server's alternate-access address (NAT / cloud / Docker)",
     )
     aero.add_argument("--aerospike-username", default=sup, help="security: username")
     aero.add_argument("--aerospike-password", default=sup, help="security: password")
@@ -254,11 +234,19 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     aero.add_argument(
         "--aerospike-login-timeout-ms", type=int, default=sup, help="default: 5000"
     )
+    aero.add_argument("--aerospike-namespace", default=sup, help="default: test")
+    aero.add_argument("--aerospike-set", default=sup, help="default: redis")
     aero.add_argument(
-        "--aerospike-use-services-alternate",
-        action="store_true",
+        "--set-route",
+        action="append",
+        type=_parse_set_route_cli,
         default=sup,
-        help="use the server's alternate-access address (NAT / cloud / Docker)",
+        metavar="PATTERN=SET",
+        help="glob match on Redis key -> Aerospike set (repeatable; first match wins; "
+        "unmatched keys use --aerospike-set)",
+    )
+    aero.add_argument(
+        "--value-bin", default=sup, help="bin name for single-value records (default: value)"
     )
     aero.add_argument(
         "--aerospike-send-key",
@@ -273,6 +261,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         type=RecordExistsPolicy,
         help="when the Aerospike key exists: update (merge, default), replace (full record), "
         "or create_only (skip existing)",
+    )
+    aero.add_argument(
+        "--max-ttl",
+        type=int,
+        default=sup,
+        help="max record TTL in seconds (default: 10 years); 0 disables the check",
     )
 
     pipeline = parser.add_argument_group("Pipeline")
@@ -304,18 +298,26 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="default: map_bin",
     )
     pipeline.add_argument(
+        "--ttl-overflow-policy",
+        choices=[p.value for p in TtlOverflowPolicy],
+        default=sup,
+        help="how to handle TTLs above --max-ttl: reject (default), clamp, or never_expire",
+    )
+
+    runlog = parser.add_argument_group("Run and logging")
+    runlog.add_argument(
         "--progress-interval",
         type=float,
         default=sup,
         help="seconds between progress log lines; 0 disables the heartbeat (default: 10)",
     )
-    pipeline.add_argument(
+    runlog.add_argument(
         "--dry-run",
         action="store_true",
         default=False,
         help="connect, gather server info, and print the run preview, then exit without writing",
     )
-    pipeline.add_argument(
+    runlog.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],

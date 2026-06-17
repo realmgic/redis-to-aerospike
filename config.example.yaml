@@ -11,20 +11,18 @@ redis:
   host: localhost          # default: localhost
   port: 6379               # default: 6379
   db: 0                    # default: 0 (ignored in cluster mode, which uses db 0)
-  password: null           # default: none
-  username: null           # ACL username (Redis 6+); default: none
-  # SCAN MATCH: only keys matching this glob are returned by SCAN (reduces Redis
-  # work). Separate from Aerospike set_routes. Default: * (whole keyspace).
-  scan_match: "*"          # default: *  (YAML alias: key_pattern if scan_match omitted)
 
   # Connection URL. When set it is the SOLE source of truth for the connection
   # target (use rediss:// for TLS) and the discrete host/port/auth/ssl fields
-  # above are ignored. Socket timeouts below still apply.
+  # below are ignored. Socket timeouts below still apply.
   # url: redis://user:password@localhost:6379/0
 
   # Redis Cluster (sharded). A single host/port (or url) is enough to seed
   # topology discovery; every shard is scanned. Cluster mode always uses db 0.
   cluster: false           # default: false
+
+  username: null           # ACL username (Redis 6+); default: none
+  password: null           # default: none
 
   # --- TLS ---
   ssl: false               # default: false
@@ -37,6 +35,10 @@ redis:
   socket_timeout: null         # default: none
   socket_connect_timeout: null # default: none
 
+  # SCAN MATCH: only keys matching this glob are returned by SCAN (reduces Redis
+  # work). Separate from Aerospike set_routes. Default: * (whole keyspace).
+  scan_match: "*"          # default: *  (YAML alias: key_pattern if scan_match omitted)
+
 aerospike:
   # Either a single host/port ...
   host: localhost          # default: localhost
@@ -46,19 +48,7 @@ aerospike:
   #   - [node1, 3000]
   #   - [node2, 3000]
 
-  namespace: test          # default: test
-  set_name: redis          # default: redis (keys that match no set_routes use this set)
-  # Optional: map Redis key globs to Aerospike sets (first match wins). Does not
-  # change SCAN; combine with redis.scan_match to limit which keys are read.
-  # With a single * in the pattern, the Aerospike user key is the part that matched
-  # the star (literals outside * are removed); multiple * / ? / [ keep the full Redis key.
-  # set_routes:
-  #   - pattern: "user:*"
-  #     destination: users
-  #   - pattern: "session:*"
-  #     destination: sessions
-  value_bin: value         # bin name for single-value records; default: value
-  max_ttl: 315360000       # max record TTL in seconds (10y); 0 disables the check
+  use_services_alternate: false  # use alternate-access address (NAT / cloud / Docker)
 
   # --- Authentication (Enterprise security-enabled clusters) ---
   username: null           # default: none (no authentication)
@@ -79,12 +69,26 @@ aerospike:
   connect_timeout_ms: 1000 # default: 1000
   login_timeout_ms: 5000   # default: 5000
 
-  # --- Misc ---
-  use_services_alternate: false  # use alternate-access address (NAT / cloud / Docker)
+  namespace: test          # default: test
+  set_name: redis          # default: redis (keys that match no set_routes use this set)
+  # Optional: map Redis key globs to Aerospike sets (first match wins). Does not
+  # change SCAN; combine with redis.scan_match to limit which keys are read.
+  # With a single * in the pattern, the Aerospike user key is the part that matched
+  # the star (literals outside * are removed); multiple * / ? / [ keep the full Redis key.
+  # set_routes:
+  #   - pattern: "user:*"
+  #     destination: users
+  #   - pattern: "session:*"
+  #     destination: sessions
+  value_bin: value         # bin name for single-value records; default: value
+
   send_key: false                # store the primary key alongside the record
   # When the Aerospike record already exists: merge bins (update), full replace,
   # or skip (create_only; counted as skipped in the summary).
   # record_exists_policy: update   # update | replace | create_only
+
+  # max_record_size: 8388608   # default: 8 MiB; reject oversized payloads before write
+  max_ttl: 315360000       # max record TTL in seconds (10y); 0 disables the check
 
 # --- Pipeline ---
 workers: 8                 # default: 8

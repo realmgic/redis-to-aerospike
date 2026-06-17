@@ -18,7 +18,7 @@ The canonical annotated YAML template is [`config.example.yaml`](../config.examp
 
 The same block configures any **Redis-protocol** source, including **Valkey**.
 
-> Only host, port, db, password, and match have CLI flags. All other Redis
+> Only host, port, db, username, password, and match have CLI flags. All other Redis
 > options are **YAML- or environment-only**.
 
 | Option | CLI flag | YAML key | Env var | Default |
@@ -26,11 +26,10 @@ The same block configures any **Redis-protocol** source, including **Valkey**.
 | Host | `--redis-host` | `host` | `REDIS_HOST` | `localhost` |
 | Port | `--redis-port` | `port` | `REDIS_PORT` | `6379` |
 | Database number | `--redis-db` | `db` | `REDIS_DB` | `0` |
-| Password | `--redis-password` | `password` | `REDIS_PASSWORD` | none |
-| Key match pattern | `--redis-match` | `scan_match` | `REDIS_SCAN_MATCH` | `*` |
-| Username (ACL) | - | `username` | `REDIS_USERNAME` | none |
 | Connection URL | - | `url` | `REDIS_URL` | none |
 | Cluster mode | - | `cluster` | `REDIS_CLUSTER` | `false` |
+| Username (ACL) | `--redis-username` | `username` | `REDIS_USERNAME` | none |
+| Password | `--redis-password` | `password` | `REDIS_PASSWORD` | none |
 | Enable TLS | - | `ssl` | `REDIS_SSL` | `false` |
 | TLS CA certs | - | `ssl_ca_certs` | `REDIS_SSL_CA_CERTS` | none |
 | TLS client cert | - | `ssl_certfile` | `REDIS_SSL_CERTFILE` | none |
@@ -38,6 +37,7 @@ The same block configures any **Redis-protocol** source, including **Valkey**.
 | TLS cert requirement | - | `ssl_cert_reqs` | `REDIS_SSL_CERT_REQS` | none (`required`/`optional`/`none`) |
 | Socket timeout (s) | - | `socket_timeout` | `REDIS_SOCKET_TIMEOUT` | none |
 | Connect timeout (s) | - | `socket_connect_timeout` | `REDIS_SOCKET_CONNECT_TIMEOUT` | none |
+| Key match pattern | `--redis-match` | `scan_match` | `REDIS_SCAN_MATCH` | `*` |
 
 Notes:
 
@@ -55,11 +55,7 @@ Notes:
 | Host | `--aerospike-host` | `host` | `AEROSPIKE_HOST` | `localhost` |
 | Port | `--aerospike-port` | `port` | `AEROSPIKE_PORT` | `3000` |
 | Seed node list | - | `hosts` | - | single host/port |
-| Namespace | `--aerospike-namespace` | `namespace` | `AEROSPIKE_NAMESPACE` | `test` |
-| Set | `--aerospike-set` | `set_name` | `AEROSPIKE_SET` | `redis` |
-| Value bin name | `--value-bin` | `value_bin` | `AEROSPIKE_VALUE_BIN` | `value` |
-| Max record size (bytes) | - | `max_record_size` | `AEROSPIKE_MAX_RECORD_SIZE` | `8388608` (8 MiB) |
-| Max TTL (s) | `--max-ttl` | `max_ttl` | `AEROSPIKE_MAX_TTL` | `315360000` (10y); `0` disables |
+| Use alternate services | `--aerospike-use-services-alternate` | `use_services_alternate` | `AEROSPIKE_USE_SERVICES_ALTERNATE` | `false` |
 | Username | `--aerospike-username` | `username` | `AEROSPIKE_USERNAME` | none |
 | Password | `--aerospike-password` | `password` | `AEROSPIKE_PASSWORD` | none |
 | Auth mode | `--aerospike-auth-mode` | `auth_mode` | `AEROSPIKE_AUTH_MODE` | `internal` |
@@ -73,9 +69,13 @@ Notes:
 | Total timeout (ms) | `--aerospike-total-timeout-ms` | `total_timeout_ms` | `AEROSPIKE_TOTAL_TIMEOUT_MS` | `0` |
 | Connect timeout (ms) | `--aerospike-connect-timeout-ms` | `connect_timeout_ms` | `AEROSPIKE_CONNECT_TIMEOUT_MS` | `1000` |
 | Login timeout (ms) | `--aerospike-login-timeout-ms` | `login_timeout_ms` | `AEROSPIKE_LOGIN_TIMEOUT_MS` | `5000` |
-| Use alternate services | `--aerospike-use-services-alternate` | `use_services_alternate` | `AEROSPIKE_USE_SERVICES_ALTERNATE` | `false` |
+| Namespace | `--aerospike-namespace` | `namespace` | `AEROSPIKE_NAMESPACE` | `test` |
+| Set | `--aerospike-set` | `set_name` | `AEROSPIKE_SET` | `redis` |
+| Value bin name | `--value-bin` | `value_bin` | `AEROSPIKE_VALUE_BIN` | `value` |
 | Send key with record | `--aerospike-send-key` | `send_key` | `AEROSPIKE_SEND_KEY` | `false` |
 | Record exists policy | `--aerospike-record-exists-policy` | `record_exists_policy` | `AEROSPIKE_RECORD_EXISTS_POLICY` | `update` (`update`/`replace`/`create_only`) |
+| Max record size (bytes) | - | `max_record_size` | `AEROSPIKE_MAX_RECORD_SIZE` | `8388608` (8 MiB) |
+| Max TTL (s) | `--max-ttl` | `max_ttl` | `AEROSPIKE_MAX_TTL` | `315360000` (10y); `0` disables |
 
 Notes:
 
