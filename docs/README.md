@@ -1,11 +1,11 @@
 # redis-to-aerospike user guide
 
-`redis-to-aerospike` is a command-line tool that copies data from **Redis** into
-**Aerospike**, converting each Redis value into a **native Aerospike type** as it
-goes (strings stay scalars, hashes become maps, lists/sets become lists, sorted
-sets become maps). It streams keys out of Redis with `SCAN` and writes them with
-a pool of worker threads, so it stays fast and memory-bounded even on large
-keyspaces.
+`redis-to-aerospike` is a command-line tool that copies data from **Redis** (or
+**Valkey** and other **Redis-compatible** servers) into **Aerospike**, converting
+each Redis value into a **native Aerospike type** as it goes (strings stay scalars,
+hashes become maps, lists/sets become lists, sorted sets become maps). It streams
+keys out of Redis with `SCAN` and writes them with a pool of worker threads, so it
+stays fast and memory-bounded even on large keyspaces.
 
 This guide is for **operators** -- people who install the built tool and run
 migrations. You do not need to read or change any code to use it.
@@ -37,7 +37,7 @@ redis-to-aerospike \
 ```
 
 Every flag has a sensible default, so the only things you usually need to supply
-are where Redis is, where Aerospike is, and which namespace/set to write into.
+are where your Redis-compatible source is, where Aerospike is, and which namespace/set to write into.
 
 ## Pick your path
 
@@ -45,7 +45,7 @@ are where Redis is, where Aerospike is, and which namespace/set to write into.
   it walks you through a throwaway local Redis + Aerospike using Docker.
 - **Migrating a real deployment?** Read the two connection guides for your
   setup, then the running guide:
-  - [Connecting to Redis](02-connecting-redis.md)
+  - [Connecting to Redis](02-connecting-redis.md) (Redis, Valkey, and other RESP-compatible sources)
   - [Connecting to Aerospike](03-connecting-aerospike.md)
   - [Running and tuning a migration](05-running-and-tuning.md)
 
@@ -54,7 +54,7 @@ are where Redis is, where Aerospike is, and which namespace/set to write into.
 | Guide | What it covers |
 | --- | --- |
 | [01 - Getting started](01-getting-started.md) | Prerequisites, install, verify, a first migration end to end. |
-| [02 - Connecting to Redis](02-connecting-redis.md) | Every Redis source option: host/port/db, auth, URLs, TLS, Cluster. |
+| [02 - Connecting to Redis](02-connecting-redis.md) | Source options for Redis, Valkey, and other wire-compatible servers: host/port/db, auth, URLs, TLS, Cluster. |
 | [03 - Connecting to Aerospike](03-connecting-aerospike.md) | Hosts, namespace/set, authentication, TLS, timeouts, cloud/NAT. |
 | [04 - Transferring data](04-transferring-data.md) | What gets copied, the type mapping, TTLs, subsets, re-runs. |
 | [05 - Running and tuning](05-running-and-tuning.md) | Config methods, performance knobs, output, exit codes. |

@@ -4,6 +4,11 @@ services:
     ports:
       - "6379:6379"
 
+  valkey:
+    image: valkey/valkey:8
+    ports:
+      - "6380:6379"
+
   aerospike:
     image: aerospike/aerospike-server-enterprise:latest
     ports:

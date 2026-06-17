@@ -25,6 +25,8 @@ from redis_to_aerospike.models import AerospikeRecord
 
 from testcontainers.core.container import DockerContainer  # noqa: E402
 
+pytestmark = pytest.mark.integration
+
 ENTERPRISE_IMAGE = "aerospike/aerospike-server-enterprise:latest"
 NAMESPACE = "test"
 SET_NAME = "redis"

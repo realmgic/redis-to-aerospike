@@ -37,6 +37,10 @@ include = ["redis_to_aerospike*"]
 
 [tool.pytest.ini_options]
 markers = [
-    "integration: marks tests that require real Redis and Aerospike instances (deselect with '-m \"not integration\"')",
+    "integration: marks tests that require Docker plus Redis-compatible (Redis or Valkey) and Aerospike instances (deselect with '-m \"not integration\"')",
 ]
+pythonpath = ["tests/integration"]
 testpaths = ["tests"]
+
+[tool.pyright]
+extraPaths = ["tests/integration"]

@@ -1,6 +1,7 @@
 # Redis to Aerospike Migrator
 
-`redis-to-aerospike` is a command-line tool that copies data from **Redis** into
+`redis-to-aerospike` is a command-line tool that copies data from **Redis** (or
+**Valkey** and other **Redis-compatible** servers using the same protocol) into
 **Aerospike**, converting each Redis value into a **native Aerospike type** as it
 goes. It streams keys out of Redis with `SCAN` and writes them with a pool of
 worker threads, so it stays fast and memory-bounded even on large keyspaces.
@@ -26,7 +27,7 @@ is the full Redis key and ``set`` comes from ``--aerospike-set``.
 - **Flexible configuration** — **CLI**, **YAML** (`--config`), and **environment
   variables**; any CLI flag you pass overrides the matching YAML value
   ([Configuration reference](docs/07-configuration-reference.md)).
-- **Serious connectivity** — Redis standalone or **Cluster**, **TLS** / mutual TLS,
+- **Serious connectivity** — Redis or Valkey standalone or **Cluster**, **TLS** / mutual TLS,
   **ACL** auth, and connection **URLs**; Aerospike **multi-host**, Enterprise **auth**
   modes, **TLS** / mutual TLS, and client timeouts ([Redis](docs/02-connecting-redis.md),
   [Aerospike](docs/03-connecting-aerospike.md)).
@@ -177,7 +178,8 @@ with its flag, YAML key, env var, and default.
 
 ### Connecting securely
 
-The tool supports Redis ACL auth, TLS, connection URLs, and Redis Cluster, and
+The tool supports Redis ACL auth, TLS, connection URLs, and Redis Cluster (and
+the same client options against Valkey where applicable), and
 Aerospike Enterprise security with auth, TLS/mutual TLS, and tuned timeouts.
 Passwords are never printed. See:
 
@@ -209,7 +211,7 @@ Exit codes: `0` success, `1` completed with errors, `2` could not connect. See
 | Guide | What it covers |
 | --- | --- |
 | [Getting started](docs/01-getting-started.md) | Install, verify, first migration end to end. |
-| [Connecting to Redis](docs/02-connecting-redis.md) | Host/port/db, auth, URLs, TLS, Cluster. |
+| [Connecting to Redis](docs/02-connecting-redis.md) | Host/port/db, auth, URLs, TLS, Cluster (Redis, Valkey, RESP-compatible). |
 | [Connecting to Aerospike](docs/03-connecting-aerospike.md) | Hosts, namespace/set, auth, TLS, timeouts. |
 | [Transferring data](docs/04-transferring-data.md) | Type mapping, TTLs, subsets, re-runs. |
 | [Running and tuning](docs/05-running-and-tuning.md) | Config methods, performance, output, exit codes. |

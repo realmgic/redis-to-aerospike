@@ -16,6 +16,8 @@ The canonical annotated YAML template is [`config.example.yaml`](../config.examp
 
 ## Redis source (YAML section: `redis:`)
 
+The same block configures any **Redis-protocol** source, including **Valkey**.
+
 > Only host, port, db, password, and match have CLI flags. All other Redis
 > options are **YAML- or environment-only**.
 

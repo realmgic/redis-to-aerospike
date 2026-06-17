@@ -13,8 +13,8 @@ minutes.
     Aerospike client from source, which needs a C toolchain. See the
     [Aerospike Python client docs](https://aerospike.com/docs/develop/client/python)
     if you hit a build error.
-- **Network access** from the machine running the tool to both your Redis
-  instance and your Aerospike cluster.
+- **Network access** from the machine running the tool to both your Redis-compatible
+  source (Redis, Valkey, or another RESP-compatible server) and your Aerospike cluster.
 - **(Optional) Docker**, only if you want to spin up throwaway local Redis and
   Aerospike services to experiment with.
 
@@ -47,8 +47,9 @@ environment is still activated.
 
 ## Spin up local services (optional, for a trial run)
 
-The repository ships a `docker-compose.yml` that starts a local Redis and a
-local Aerospike with no authentication or TLS -- perfect for a first run:
+The repository ships a `docker-compose.yml` that starts a local **Redis** and
+**Valkey** (both on the default port inside the container) plus a local Aerospike
+with no authentication or TLS -- perfect for a first run:
 
 ```bash
 docker compose up -d
@@ -57,6 +58,8 @@ docker compose up -d
 This gives you:
 
 - **Redis 7** on `localhost:6379`
+- **Valkey 8** on `localhost:6380` (same wire protocol; point `--redis-host` /
+  `--redis-port` at Valkey if you want to migrate from it instead of Redis)
 - **Aerospike** with a namespace named `test`, reachable on `localhost:3000`
 
 Put a couple of keys in Redis so there's something to migrate:

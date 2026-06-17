@@ -43,18 +43,21 @@ Run the full suite:
 pytest
 ```
 
-Some tests are marked `integration` and require real Redis and Aerospike
-instances. To skip them and run only the fast tests:
+Some tests are marked `integration` and require Docker plus **Redis** and **Valkey**
+containers (via testcontainers) and a real **Aerospike** instance. To skip them and run only the fast tests:
 
 ```bash
 pytest -m "not integration"
 ```
 
-To run the integration tests locally, start the throwaway services first:
+To run the integration tests locally you need Docker; the suite starts its own
+Redis, Valkey, and Aerospike containers (no `docker compose` required for pytest):
 
 ```bash
-docker compose up -d
+pytest tests/integration -m integration
 ```
+
+You can still use `docker compose up -d` if you want local services for manual runs.
 
 ## Submitting changes
 
@@ -77,7 +80,7 @@ Open an issue with:
 
 - What you expected to happen and what actually happened.
 - Steps to reproduce (commands, config, sample data if possible).
-- Versions: Python, `redis-to-aerospike`, Redis, and Aerospike.
+- Versions: Python, `redis-to-aerospike`, Redis or Valkey, and Aerospike.
 
 Please do not include passwords, tokens, or other secrets in issues or pull
 requests.

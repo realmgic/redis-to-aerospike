@@ -1,8 +1,11 @@
-"""Integration fixtures: spin up real Redis and Aerospike via testcontainers.
+"""Integration fixtures: spin up Redis (or Valkey) and Aerospike via testcontainers.
 
 These tests need Docker. When Docker (or the optional client libraries) are
 unavailable, the whole module is skipped so the unit suite stays runnable
 everywhere.
+
+Redis and Valkey each get a session-scoped container; tests import the client
+fixture they need (``redis_client`` vs ``valkey_client``).
 """
 
 from __future__ import annotations
@@ -25,6 +28,9 @@ from testcontainers.core.wait_strategies import LogMessageWaitStrategy  # noqa: 
 # it (see test_secure_connection.py).
 AEROSPIKE_IMAGE = "aerospike/aerospike-server-enterprise:latest"
 REDIS_IMAGE = "redis:7"
+# Valkey is wire-compatible with the commands this migrator uses; integration
+# tests exercise the same scenarios against a Valkey container.
+VALKEY_IMAGE = "valkey/valkey:8"
 AEROSPIKE_NAMESPACE = "test"
 
 
@@ -38,8 +44,6 @@ def _docker_available() -> bool:
     except Exception:
         return False
 
-
-pytestmark = pytest.mark.integration
 
 if not _docker_available():  # pragma: no cover - environment dependent
     pytest.skip("Docker is not available; skipping integration tests", allow_module_level=True)
@@ -95,6 +99,38 @@ def redis_client(redis_container):
     client = redis.Redis(
         host=redis_container["host"],
         port=redis_container["port"],
+        db=0,
+        decode_responses=False,
+    )
+    client.flushall()
+    yield client
+    client.flushall()
+    client.close()
+
+
+@pytest.fixture(scope="session")
+def valkey_container():
+    container = (
+        DockerContainer(VALKEY_IMAGE)
+        .with_exposed_ports(6379)
+        .waiting_for(
+            LogMessageWaitStrategy("Ready to accept connections").with_startup_timeout(60)
+        )
+    )
+    container.start()
+    try:
+        host = container.get_container_host_ip()
+        port = int(container.get_exposed_port(6379))
+        yield {"host": host, "port": port}
+    finally:
+        container.stop()
+
+
+@pytest.fixture()
+def valkey_client(valkey_container):
+    client = redis.Redis(
+        host=valkey_container["host"],
+        port=valkey_container["port"],
         db=0,
         decode_responses=False,
     )

@@ -1,8 +1,14 @@
 # 02 - Connecting to Redis
 
 Redis is the **source** of the migration. The tool reads from it only; it never
-writes to or deletes from Redis. This guide covers every connection option and
-gives a copy-paste recipe for each common deployment.
+writes to or deletes from the source server.
+
+**Valkey** and other **Redis-compatible** (RESP) servers that implement the same
+commands (`SCAN`, string/hash/list/set/zset reads, TTLs, and optional Cluster/TLS/ACL
+patterns) work the same way: use the same `redis:` settings and point `host` /
+`port` (or `url`) at Valkey. The CLI still uses the `--redis-*` names because the
+client library speaks the Redis protocol. Integration tests in this repository also
+run the end-to-end suite against Valkey in Docker.
 
 ## Important: not every option has a CLI flag
 
