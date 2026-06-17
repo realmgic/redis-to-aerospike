@@ -6,7 +6,7 @@ import pytest
 
 import redis_to_aerospike.cli as cli
 from redis_to_aerospike.aerospike_sink import AerospikeServerInfo
-from redis_to_aerospike.config import MigrationConfig
+from redis_to_aerospike.config import MigrationConfig, RecordExistsPolicy
 from redis_to_aerospike.log_banners import BANNER_TITLE
 from redis_to_aerospike.stats import MigrationStats
 
@@ -20,6 +20,20 @@ def test_parse_args_defaults():
     assert config.workers == 8
     assert config.hash_strategy.value == "map_bin"
     assert config.ttl_overflow_policy.value == "reject"
+    assert config.aerospike.record_exists_policy is RecordExistsPolicy.UPDATE
+
+
+def test_build_config_maps_record_exists_policy_flag():
+    config = cli.build_config(
+        cli.parse_args(["--aerospike-record-exists-policy", "create_only"])
+    )
+    assert config.aerospike.record_exists_policy is RecordExistsPolicy.CREATE_ONLY
+
+
+def test_render_preview_shows_record_exists_policy():
+    config = cli.build_config(cli.parse_args(["--aerospike-record-exists-policy", "replace"]))
+    preview = cli.render_preview(config, {"keys": 1}, None)
+    assert "record exists : replace" in preview
 
 
 def test_build_config_maps_ttl_overflow_flags():

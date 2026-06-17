@@ -10,6 +10,7 @@ from .aerospike_sink import AerospikeServerInfo, AerospikeSink
 from .config import (
     HashStrategy,
     MigrationConfig,
+    RecordExistsPolicy,
     TtlOverflowPolicy,
     _parse_set_routes,
 )
@@ -59,6 +60,7 @@ _ARG_MAP: Dict[str, tuple] = {
     "aerospike_login_timeout_ms": ("aerospike", "login_timeout_ms", None),
     "aerospike_use_services_alternate": ("aerospike", "use_services_alternate", None),
     "aerospike_send_key": ("aerospike", "send_key", None),
+    "aerospike_record_exists_policy": ("aerospike", "record_exists_policy", RecordExistsPolicy),
     "workers": (None, "workers", None),
     "scan_batch": (None, "scan_batch", None),
     "queue_size": (None, "queue_size", None),
@@ -264,6 +266,14 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=sup,
         help="store the primary key alongside the record (POLICY_KEY_SEND)",
     )
+    aero.add_argument(
+        "--aerospike-record-exists-policy",
+        choices=[p.value for p in RecordExistsPolicy],
+        default=sup,
+        type=RecordExistsPolicy,
+        help="when the Aerospike key exists: update (merge, default), replace (full record), "
+        "or create_only (skip existing)",
+    )
 
     pipeline = parser.add_argument_group("Pipeline")
     pipeline.add_argument("--workers", type=int, default=sup, help="default: 8")
@@ -431,6 +441,7 @@ def render_preview(
             f"    timeouts(ms): socket={aero.socket_timeout_ms} total={aero.total_timeout_ms} "
             f"connect={aero.connect_timeout_ms} login={aero.login_timeout_ms}",
             f"    send key    : {aero.send_key}",
+            f"    record exists : {aero.record_exists_policy.value}",
             f"    services-alt: {aero.use_services_alternate}",
         ]
     )

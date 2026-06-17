@@ -75,6 +75,7 @@ Notes:
 | Login timeout (ms) | `--aerospike-login-timeout-ms` | `login_timeout_ms` | `AEROSPIKE_LOGIN_TIMEOUT_MS` | `5000` |
 | Use alternate services | `--aerospike-use-services-alternate` | `use_services_alternate` | `AEROSPIKE_USE_SERVICES_ALTERNATE` | `false` |
 | Send key with record | `--aerospike-send-key` | `send_key` | `AEROSPIKE_SEND_KEY` | `false` |
+| Record exists policy | `--aerospike-record-exists-policy` | `record_exists_policy` | `AEROSPIKE_RECORD_EXISTS_POLICY` | `update` (`update`/`replace`/`create_only`) |
 
 Notes:
 
@@ -83,6 +84,11 @@ Notes:
   host/port.
 - `auth_mode` is one of `internal`, `external`, `external_insecure`, `pki`.
 - `tls_name` is applied to every host as the server certificate subject name.
+- `record_exists_policy` controls Aerospike writes when the key is already present:
+  **`update`** (default) merges bins from Redis into the existing record;
+  **`replace`** replaces the whole record so it matches only this migration’s bins
+  (extra bins from earlier writes are removed); **`create_only`** skips the write
+  and counts the key under **skipped** (`exists`) if a record already exists.
 
 ## Pipeline (YAML: top level)
 

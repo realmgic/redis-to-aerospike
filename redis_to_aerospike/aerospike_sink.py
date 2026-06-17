@@ -14,10 +14,17 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .config import AerospikeConfig
+from .config import AerospikeConfig, RecordExistsPolicy
 from .models import AerospikeRecord, BinWritePolicy
 
 logger = logging.getLogger(__name__)
+
+# Batch ``write_many`` outcome string when CREATE_ONLY hits an existing record.
+BATCH_RECORD_EXISTS_OUTCOME = "RecordExists"
+
+
+class RecordAlreadyExists(Exception):
+    """Raised on single-record CREATE_ONLY writes when the key already exists."""
 
 
 class RecordTooLargeError(Exception):
@@ -246,12 +253,54 @@ class AerospikeSink:
     def _encode_bins_for_write(self, bins: Dict[str, Any]) -> Dict[str, Any]:
         return {name: self._encode_bin_value_for_write(v) for name, v in bins.items()}
 
-    @staticmethod
-    def _policy(record: AerospikeRecord) -> Dict[str, int]:
+    def _write_policy(self, record: AerospikeRecord) -> Dict[str, Any]:
         # TTL is set via the write/operate policy. The legacy meta["ttl"] was
         # deprecated in the Aerospike client 19.1. A positive number is seconds,
         # 0 uses the namespace default, and 0xFFFFFFFF never expires.
-        return {"ttl": record.ttl_s if record.ttl_s is not None else 0}
+        aerospike = self._aero()
+        policy: Dict[str, Any] = {"ttl": record.ttl_s if record.ttl_s is not None else 0}
+        mode = self._config.record_exists_policy
+        if mode is RecordExistsPolicy.UPDATE:
+            policy["exists"] = aerospike.POLICY_EXISTS_IGNORE
+        elif mode is RecordExistsPolicy.REPLACE:
+            policy["exists"] = aerospike.POLICY_EXISTS_CREATE_OR_REPLACE
+        else:
+            policy["exists"] = aerospike.POLICY_EXISTS_CREATE
+        return policy
+
+    def _record_exists_error_codes(self) -> frozenset[int]:
+        """Integer result/exception codes meaning the record already exists."""
+        aerospike = self._aero()
+        codes: set[int] = set()
+        for name in ("AEROSPIKE_ERR_RECORD_EXISTS", "AS_PROTO_RESULT_FAIL_RECORD_EXISTS"):
+            v = getattr(aerospike, name, None)
+            if isinstance(v, int):
+                codes.add(v)
+        try:
+            import aerospike.exception as ae
+
+            c = getattr(ae.RecordExistsError, "code", None)
+            if isinstance(c, int):
+                codes.add(c)
+        except Exception:
+            pass
+        return frozenset(codes)
+
+    def _is_record_exists_error(self, exc: BaseException) -> bool:
+        """True when the server rejected the write because the record already exists."""
+        cls = type(exc)
+        if cls.__name__ == "RecordExistsError" and getattr(cls, "__module__", "") == "aerospike.exception":
+            return True
+        codes = self._record_exists_error_codes()
+        if not codes:
+            return False
+        ec = getattr(exc, "code", None)
+        try:
+            if ec is not None and int(ec) in codes:
+                return True
+        except (TypeError, ValueError):
+            pass
+        return False
 
     @staticmethod
     def _estimate_size(value) -> int:
@@ -310,19 +359,27 @@ class AerospikeSink:
             if record.policy_for(name) is BinWritePolicy.UNIQUE_LIST
         }
 
-        if not unique_bins:
-            self._client.put(
-                self._key(record),
-                self._encode_bins_for_write(record.bins),
-                policy=self._policy(record),
-            )
-            return
+        try:
+            if not unique_bins:
+                self._client.put(
+                    self._key(record),
+                    self._encode_bins_for_write(record.bins),
+                    policy=self._write_policy(record),
+                )
+                return
 
-        self._client.operate(
-            self._key(record),
-            self._build_ops(record, unique_bins),
-            policy=self._policy(record),
-        )
+            self._client.operate(
+                self._key(record),
+                self._build_ops(record, unique_bins),
+                policy=self._write_policy(record),
+            )
+        except Exception as exc:
+            if (
+                self._config.record_exists_policy is RecordExistsPolicy.CREATE_ONLY
+                and self._is_record_exists_error(exc)
+            ):
+                raise RecordAlreadyExists from exc
+            raise
 
     def write_many(self, records: List[AerospikeRecord]) -> List[Optional[str]]:
         """Persist a batch of records via a single ``batch_write`` round-trip.
@@ -367,7 +424,9 @@ class AerospikeSink:
         sent_keys: List[tuple] = []
         for key, slot in last_slot_for_key.items():
             record = records[slot]
-            writes.append(Write(key, self._ops_for(record), policy=self._batch_policy(record)))
+            writes.append(
+                Write(key, self._ops_for(record), policy=self._batch_policy(record))
+            )
             sent_keys.append(key)
 
         batch_records = BatchRecords(writes)
@@ -383,8 +442,7 @@ class AerospikeSink:
                 results[i] = reason_for_key.get(key)
         return results
 
-    @staticmethod
-    def _batch_reason(reply: Any) -> Optional[str]:
+    def _batch_reason(self, reply: Any) -> Optional[str]:
         """Map a single batch reply to ``None`` (ok) or a failure reason.
 
         ``result == 0`` is ``AS_PROTO_RESULT_OK``. A non-zero code fails only
@@ -394,18 +452,22 @@ class AerospikeSink:
         result = getattr(reply, "result", 0)
         if result == 0:
             return None
+        if self._config.record_exists_policy is RecordExistsPolicy.CREATE_ONLY:
+            exists_codes = self._record_exists_error_codes()
+            if exists_codes and result in exists_codes:
+                return BATCH_RECORD_EXISTS_OUTCOME
         reason = f"BatchError:{result}"
         if getattr(reply, "in_doubt", False):
             reason += ":in_doubt"
         return reason
 
-    def _batch_policy(self, record: AerospikeRecord) -> Dict[str, int]:
+    def _batch_policy(self, record: AerospikeRecord) -> Dict[str, Any]:
         """Per-record batch write policy: this record's TTL plus key-send.
 
         The client's default op policies do not apply to batch sub-commands, so
         ``POLICY_KEY_SEND`` is set here when configured.
         """
-        policy = self._policy(record)
+        policy = dict(self._write_policy(record))
         if self._config.send_key:
             aerospike = self._aero()
             if hasattr(aerospike, "POLICY_KEY_SEND"):

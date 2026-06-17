@@ -32,7 +32,8 @@ is the full Redis key and ``set`` comes from ``--aerospike-set``.
   modes, **TLS** / mutual TLS, and client timeouts ([Redis](docs/02-connecting-redis.md),
   [Aerospike](docs/03-connecting-aerospike.md)).
 - **Tuning and safety** — Scan and write **rate limits**, **batch** writes to
-  Aerospike, hash layout strategies, **TTL overflow** policies, dry-run **preview**,
+  Aerospike, **record-exists** policies (merge, full replace, or create-only),
+  hash layout strategies, **TTL overflow** policies, dry-run **preview**,
   namespace checks, progress **heartbeat**, and a final **summary** (throughput,
   skips, errors) with meaningful **exit codes** ([Running and tuning](docs/05-running-and-tuning.md)).
 

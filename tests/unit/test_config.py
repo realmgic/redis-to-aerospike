@@ -5,6 +5,7 @@ from redis_to_aerospike.config import (
     AerospikeConfig,
     HashStrategy,
     MigrationConfig,
+    RecordExistsPolicy,
     RedisConfig,
     TtlOverflowPolicy,
 )
@@ -23,6 +24,7 @@ def test_defaults():
     assert config.aerospike.value_bin == "value"
     assert config.aerospike.max_ttl == DEFAULT_MAX_TTL_S
     assert config.ttl_overflow_policy is TtlOverflowPolicy.REJECT
+    assert config.aerospike.record_exists_policy is RecordExistsPolicy.UPDATE
 
 
 def test_redis_from_env():
@@ -44,6 +46,11 @@ def test_aerospike_from_env():
 def test_aerospike_max_ttl_from_env():
     cfg = AerospikeConfig.from_env({"AEROSPIKE_MAX_TTL": "12345"})
     assert cfg.max_ttl == 12345
+
+
+def test_aerospike_record_exists_policy_from_env():
+    cfg = AerospikeConfig.from_env({"AEROSPIKE_RECORD_EXISTS_POLICY": "create_only"})
+    assert cfg.record_exists_policy is RecordExistsPolicy.CREATE_ONLY
 
 
 def test_migration_from_env_parses_strategy_and_ints():
@@ -198,10 +205,21 @@ def test_aerospike_from_dict_partial_keeps_defaults():
     assert cfg.connect_timeout_ms == 1000
 
 
+def test_aerospike_from_dict_record_exists_policy():
+    cfg = AerospikeConfig.from_dict({"record_exists_policy": "replace"})
+    assert cfg.record_exists_policy is RecordExistsPolicy.REPLACE
+
+
 def test_migration_from_dict_nested_sections_and_enums():
     data = {
         "redis": {"host": "r", "port": 6380},
-        "aerospike": {"host": "a", "port": 3100, "namespace": "ns", "username": "admin"},
+        "aerospike": {
+            "host": "a",
+            "port": 3100,
+            "namespace": "ns",
+            "username": "admin",
+            "record_exists_policy": "create_only",
+        },
         "workers": 12,
         "hash_strategy": "field_bins",
         "ttl_overflow_policy": "clamp",
@@ -212,6 +230,7 @@ def test_migration_from_dict_nested_sections_and_enums():
     assert cfg.aerospike.hosts == [("a", 3100)]
     assert cfg.aerospike.namespace == "ns"
     assert cfg.aerospike.username == "admin"
+    assert cfg.aerospike.record_exists_policy is RecordExistsPolicy.CREATE_ONLY
     assert cfg.workers == 12
     assert cfg.hash_strategy is HashStrategy.FIELD_BINS
     assert cfg.ttl_overflow_policy is TtlOverflowPolicy.CLAMP

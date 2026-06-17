@@ -11,7 +11,7 @@ from migration_helpers import (
     run_migration,
 )
 
-from redis_to_aerospike.config import HashStrategy, TtlOverflowPolicy
+from redis_to_aerospike.config import HashStrategy, RecordExistsPolicy, TtlOverflowPolicy
 
 pytestmark = pytest.mark.integration
 
@@ -216,3 +216,39 @@ def test_set_uniqueness_is_idempotent(redis_client, redis_container, aerospike_c
         assert sorted(b["value"]) == ["a", "b", "c"]
     finally:
         client.close()
+
+
+def test_create_only_skips_existing_record(redis_client, redis_container, aerospike_container):
+    """CREATE_ONLY skips when the key exists; Aerospike returns AEROSPIKE_ERR_RECORD_EXISTS — expected."""
+    import aerospike
+
+    key = "e2e_create_only_hold"
+    redis_client.set(key, "from_redis")
+
+    config = build_migration_config(redis_container, aerospike_container)
+    config.redis.scan_match = key
+    config.aerospike.record_exists_policy = RecordExistsPolicy.CREATE_ONLY
+
+    aclient = aerospike_reader(config)
+    ns, st = config.aerospike.namespace, config.aerospike.set_name
+    try:
+        aclient.put(
+            (ns, st, key),
+            {"value": "preseed"},
+            policy={"ttl": aerospike.TTL_NEVER_EXPIRE},
+        )
+    finally:
+        aclient.close()
+
+    stats = run_migration(config)
+    assert stats.skipped == 1
+    assert stats.skipped_by_type.get("exists") == 1
+    assert stats.migrated == 0
+    assert stats.errors == 0
+
+    aclient = aerospike_reader(config)
+    try:
+        _, _, bins = aclient.get((ns, st, key))
+        assert bins["value"] == "preseed"
+    finally:
+        aclient.close()

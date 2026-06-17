@@ -9,17 +9,29 @@ import pytest
 from redis_to_aerospike.aerospike_sink import (
     AerospikeServerInfo,
     AerospikeSink,
+    BATCH_RECORD_EXISTS_OUTCOME,
+    RecordAlreadyExists,
     RecordTooLargeError,
 )
-from redis_to_aerospike.config import AerospikeConfig
+from redis_to_aerospike.config import AerospikeConfig, RecordExistsPolicy
 from redis_to_aerospike.models import TTL_NEVER_EXPIRE, AerospikeRecord, BinWritePolicy
 
 
-def make_sink(client, max_record_size=8 * 1024 * 1024):
+def make_sink(client, max_record_size=8 * 1024 * 1024, **aerospike_kwargs):
     return AerospikeSink(
-        AerospikeConfig(namespace="test", set_name="redis", max_record_size=max_record_size),
+        AerospikeConfig(namespace="test", set_name="redis", max_record_size=max_record_size, **aerospike_kwargs),
         client=client,
     )
+
+
+def _expect_policy(fake_aerospike, ttl, *, exists: str = "ignore"):
+    """Build expected write policy dict using fake aerospike constants."""
+    key = {
+        "ignore": "POLICY_EXISTS_IGNORE",
+        "cor": "POLICY_EXISTS_CREATE_OR_REPLACE",
+        "create": "POLICY_EXISTS_CREATE",
+    }[exists]
+    return {"ttl": ttl, "exists": getattr(fake_aerospike, key)}
 
 
 def test_write_uses_record_level_set_name(fake_aero_client):
@@ -30,7 +42,7 @@ def test_write_uses_record_level_set_name(fake_aero_client):
     assert bins == {"value": 1}
 
 
-def test_plain_record_uses_put_with_key_bins_and_ttl(fake_aero_client):
+def test_plain_record_uses_put_with_key_bins_and_ttl(fake_aerospike, fake_aero_client):
     sink = make_sink(fake_aero_client)
 
     sink.write(AerospikeRecord(key="k", bins={"value": 42}, ttl_s=3))
@@ -40,7 +52,7 @@ def test_plain_record_uses_put_with_key_bins_and_ttl(fake_aero_client):
     key, bins, policy = fake_aero_client.puts[0]
     assert key == ("test", "redis", "k")
     assert bins == {"value": 42}
-    assert policy == {"ttl": 3}
+    assert policy == _expect_policy(fake_aerospike, 3)
 
 
 def test_dict_bin_put_wraps_key_ordered_dict(fake_aerospike, fake_aero_client):
@@ -50,21 +62,21 @@ def test_dict_bin_put_wraps_key_ordered_dict(fake_aerospike, fake_aero_client):
     _, bins, policy = fake_aero_client.puts[0]
     assert isinstance(bins["value"], fake_aerospike.KeyOrderedDict)
     assert dict(bins["value"]) == {"a": 1, "b": 2}
-    assert policy == {"ttl": 3}
+    assert policy == _expect_policy(fake_aerospike, 3)
 
 
-def test_never_expire_ttl_passes_through(fake_aero_client):
+def test_never_expire_ttl_passes_through(fake_aerospike, fake_aero_client):
     make_sink(fake_aero_client).write(
         AerospikeRecord(key="k", bins={"value": 1}, ttl_s=TTL_NEVER_EXPIRE)
     )
     _, _, policy = fake_aero_client.puts[0]
-    assert policy == {"ttl": 0xFFFFFFFF}
+    assert policy == _expect_policy(fake_aerospike, 0xFFFFFFFF)
 
 
-def test_none_ttl_becomes_namespace_default(fake_aero_client):
+def test_none_ttl_becomes_namespace_default(fake_aerospike, fake_aero_client):
     make_sink(fake_aero_client).write(AerospikeRecord(key="k", bins={"value": 1}, ttl_s=None))
     _, _, policy = fake_aero_client.puts[0]
-    assert policy == {"ttl": 0}
+    assert policy == _expect_policy(fake_aerospike, 0)
 
 
 def test_unique_list_record_uses_operate_with_reset_then_unique_append(fake_aerospike, fake_aero_client):
@@ -82,7 +94,7 @@ def test_unique_list_record_uses_operate_with_reset_then_unique_append(fake_aero
     assert len(fake_aero_client.operates) == 1
     key, ops, policy = fake_aero_client.operates[0]
     assert key == ("test", "redis", "myset")
-    assert policy == {"ttl": 10}
+    assert policy == _expect_policy(fake_aerospike, 10)
 
     # First reset the bin to an empty list, then uniquely append the members.
     assert ops[0] == {"op": "write", "bin": "value", "val": []}
@@ -130,6 +142,74 @@ def test_mixed_unique_list_and_map_bin_wraps_map_as_key_ordered(fake_aerospike, 
     meta_writes = [o for o in ops if o["op"] == "write" and o["bin"] == "meta"]
     assert len(meta_writes) == 1
     assert isinstance(meta_writes[0]["val"], fake_aerospike.KeyOrderedDict)
+
+
+def test_replace_policy_sets_create_or_replace_exists(fake_aerospike, fake_aero_client):
+    sink = make_sink(
+        fake_aero_client,
+        record_exists_policy=RecordExistsPolicy.REPLACE,
+    )
+    sink.write(AerospikeRecord(key="k", bins={"value": 1}, ttl_s=2))
+    assert fake_aero_client.puts[0][2] == _expect_policy(fake_aerospike, 2, exists="cor")
+
+
+def test_create_only_put_raises_record_already_exists_by_error_code(fake_aerospike, fake_aero_client):
+    """Some client paths surface AEROSPIKE_ERR_RECORD_EXISTS on a generic exception."""
+
+    class ServerError(Exception):
+        pass
+
+    ServerError.code = fake_aerospike.AEROSPIKE_ERR_RECORD_EXISTS  # type: ignore[attr-defined]
+
+    sink = make_sink(
+        fake_aero_client,
+        record_exists_policy=RecordExistsPolicy.CREATE_ONLY,
+    )
+
+    def _boom(*args, **kwargs):
+        raise ServerError()
+
+    fake_aero_client.put = _boom
+    with pytest.raises(RecordAlreadyExists):
+        sink.write(AerospikeRecord(key="k", bins={"value": 1}))
+
+
+def test_create_only_put_raises_record_already_exists(fake_aerospike, fake_aero_client):
+    class RecordExistsError(Exception):
+        __module__ = "aerospike.exception"
+
+    sink = make_sink(
+        fake_aero_client,
+        record_exists_policy=RecordExistsPolicy.CREATE_ONLY,
+    )
+
+    def _boom(*args, **kwargs):
+        raise RecordExistsError()
+
+    fake_aero_client.put = _boom
+    with pytest.raises(RecordAlreadyExists):
+        sink.write(AerospikeRecord(key="k", bins={"value": 1}))
+
+
+def test_write_many_create_only_maps_record_exists_result(fake_aerospike, fake_aero_client):
+    sink = make_sink(
+        fake_aero_client,
+        record_exists_policy=RecordExistsPolicy.CREATE_ONLY,
+    )
+    fake_aero_client.batch_results = {
+        ("test", "redis", "x"): (fake_aerospike.AEROSPIKE_ERR_RECORD_EXISTS, False),
+    }
+    results = sink.write_many([AerospikeRecord(key="x", bins={"value": 1})])
+    assert results == [BATCH_RECORD_EXISTS_OUTCOME]
+
+
+def test_write_many_default_policy_record_exists_is_plain_batch_error(fake_aerospike, fake_aero_client):
+    sink = make_sink(fake_aero_client)
+    fake_aero_client.batch_results = {
+        ("test", "redis", "x"): (fake_aerospike.AEROSPIKE_ERR_RECORD_EXISTS, False),
+    }
+    results = sink.write_many([AerospikeRecord(key="x", bins={"value": 1})])
+    assert results == [f"BatchError:{fake_aerospike.AEROSPIKE_ERR_RECORD_EXISTS}"]
 
 
 def test_write_before_connect_raises():
@@ -204,9 +284,9 @@ def test_write_many_builds_one_write_per_record_with_own_ttl(fake_aerospike, fak
         ("test", "redis", "c"),
     ]
     # Each Write carries that record's own TTL in its policy.
-    assert writes[0].policy["ttl"] == 3
-    assert writes[1].policy["ttl"] == 0xFFFFFFFF
-    assert writes[2].policy["ttl"] == 0
+    assert writes[0].policy == _expect_policy(fake_aerospike, 3)
+    assert writes[1].policy == _expect_policy(fake_aerospike, 0xFFFFFFFF)
+    assert writes[2].policy == _expect_policy(fake_aerospike, 0)
 
 
 def test_write_many_unique_list_emits_reset_then_unique_append(fake_aerospike, fake_aero_client):
@@ -233,8 +313,7 @@ def test_write_many_send_key_sets_key_policy(fake_aerospike, fake_aero_client):
     sink.write_many([AerospikeRecord(key="k", bins={"value": 1}, ttl_s=5)])
 
     policy = fake_aero_client.batches[0].batch_records[0].policy
-    assert policy["ttl"] == 5
-    assert policy["key"] == fake_aerospike.POLICY_KEY_SEND
+    assert policy == {**_expect_policy(fake_aerospike, 5), "key": fake_aerospike.POLICY_KEY_SEND}
 
 
 def test_write_many_oversized_record_is_excluded_and_keeps_alignment(fake_aerospike, fake_aero_client):
@@ -294,7 +373,7 @@ def test_write_many_collapses_duplicate_keys_last_wins(fake_aerospike, fake_aero
     # Last occurrence wins: the surviving "dup" write carries value 99 / ttl 20.
     dup_write = next(w for w in writes if w.key == ("test", "redis", "dup"))
     assert {"op": "write", "bin": "value", "val": 99} in dup_write.ops
-    assert dup_write.policy["ttl"] == 20
+    assert dup_write.policy == _expect_policy(fake_aerospike, 20)
 
 
 def test_write_many_duplicate_key_failure_propagates_to_all_positions(fake_aerospike, fake_aero_client):

@@ -1,9 +1,10 @@
 import threading
 import time
 
-from redis_to_aerospike.config import AerospikeSetRoute, MigrationConfig
+from redis_to_aerospike.config import AerospikeSetRoute, MigrationConfig, RecordExistsPolicy
 from redis_to_aerospike.converters.base import Converter
 from redis_to_aerospike.converters.registry import ConverterRegistry
+from redis_to_aerospike.aerospike_sink import RecordAlreadyExists
 from redis_to_aerospike.migrator import Migrator
 from redis_to_aerospike.models import AerospikeRecord, RedisRecord
 from redis_to_aerospike.transforms import Transform
@@ -248,6 +249,58 @@ def test_duplicate_keys_from_scan_do_not_crash():
 
     assert stats.migrated == 2
     assert "dup" in sink.written
+
+
+def test_write_one_create_only_record_already_exists_counts_as_skip():
+    class SkipSink(FakeSink):
+        def write(self, record):
+            if record.key == "exists":
+                raise RecordAlreadyExists()
+            super().write(record)
+
+    records = [
+        RedisRecord(key="exists", type="string", value=b"1"),
+        RedisRecord(key="new", type="string", value=b"2"),
+    ]
+    config = make_config()
+    config.aerospike.record_exists_policy = RecordExistsPolicy.CREATE_ONLY
+    stats = Migrator(config, FakeSource(records), ConverterRegistry(), SkipSink()).run()
+
+    assert stats.migrated == 1
+    assert stats.skipped == 1
+    assert stats.skipped_by_type == {"exists": 1}
+    assert stats.errors == 0
+
+
+def test_batch_create_only_record_exists_outcome_counts_as_skip():
+    records = [
+        RedisRecord(key="hit", type="string", value=b"1"),
+        RedisRecord(key="ok", type="string", value=b"2"),
+    ]
+    sink = BatchSink(
+        fail_keys={
+            "hit": "RecordExists",
+        }
+    )
+    config = make_config(workers=1, write_batch_size=10)
+    config.aerospike.record_exists_policy = RecordExistsPolicy.CREATE_ONLY
+    stats = Migrator(config, FakeSource(records), ConverterRegistry(), sink).run()
+
+    assert stats.migrated == 1
+    assert stats.skipped == 1
+    assert stats.skipped_by_type == {"exists": 1}
+    assert stats.errors == 0
+
+
+def test_batch_record_exists_outcome_is_error_when_not_create_only():
+    records = [RedisRecord(key="hit", type="string", value=b"1")]
+    sink = BatchSink(fail_keys={"hit": "RecordExists"})
+    config = make_config(workers=1, write_batch_size=10)
+    stats = Migrator(config, FakeSource(records), ConverterRegistry(), sink).run()
+
+    assert stats.migrated == 0
+    assert stats.errors == 1
+    assert "write:RecordExists" in stats.errors_by_type
 
 
 # --- batch mode ------------------------------------------------------------

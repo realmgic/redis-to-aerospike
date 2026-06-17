@@ -10,7 +10,14 @@ and extend:
 * ``migrator``       -- a multi-threaded producer/consumer pipeline tying it together.
 """
 
-from .config import AerospikeConfig, AerospikeSetRoute, HashStrategy, MigrationConfig, RedisConfig
+from .config import (
+    AerospikeConfig,
+    AerospikeSetRoute,
+    HashStrategy,
+    MigrationConfig,
+    RecordExistsPolicy,
+    RedisConfig,
+)
 from .models import AerospikeRecord, BinWritePolicy, RedisRecord
 from .migrator import Migrator
 from .stats import MigrationStats
@@ -22,6 +29,7 @@ __all__ = [
     "BinWritePolicy",
     "HashStrategy",
     "MigrationConfig",
+    "RecordExistsPolicy",
     "MigrationStats",
     "Migrator",
     "RedisConfig",

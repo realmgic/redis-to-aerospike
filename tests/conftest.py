@@ -68,6 +68,10 @@ def fake_aerospike(monkeypatch):
     aero.AUTH_EXTERNAL_INSECURE = 2
     aero.AUTH_PKI = 3
     aero.POLICY_KEY_SEND = 1
+    aero.POLICY_EXISTS_IGNORE = 100
+    aero.POLICY_EXISTS_CREATE_OR_REPLACE = 101
+    aero.POLICY_EXISTS_CREATE = 102
+    aero.AEROSPIKE_ERR_RECORD_EXISTS = 17
 
     helpers = types.ModuleType("aerospike_helpers")
     ops_pkg = types.ModuleType("aerospike_helpers.operations")

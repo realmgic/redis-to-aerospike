@@ -139,16 +139,26 @@ the check matches your cluster's actual configuration.
 
 ## Running it more than once (idempotency)
 
-Re-running a migration is safe:
+Re-running a migration is usually safe:
 
-- Regular records are written with `put`, so a second run simply overwrites them
-  with the same values.
+- With the default **`update`** record-exists policy (`--aerospike-record-exists-policy update`,
+  YAML `aerospike.record_exists_policy`, env `AEROSPIKE_RECORD_EXISTS_POLICY`), regular
+  records use Aerospike create-or-update semantics: new bins from Redis are merged
+  into any existing record, and bins present in the write are updated.
+- **`replace`** replaces the entire Aerospike record when the key exists (and
+  creates it when missing), so the stored record matches only the bins produced
+  from Redis for that run—useful if older runs or manual edits left extra bins
+  you want removed.
+- **`create_only`** inserts only: if the record already exists, the write is
+  skipped and counted under **skipped** (`exists`) in the summary—useful for
+  incremental loads where Aerospike is already authoritative for some keys.
 - **Set** bins use `ADD_UNIQUE` with the `NO_FAIL` and `PARTIAL` flags, so
   re-adding members that already exist is silently skipped rather than failing
   the write.
 
 This means an interrupted migration can be re-run from the start without
-producing duplicates or errors from already-migrated data.
+producing duplicates or errors from already-migrated data (under the default
+`update` policy).
 
 ## Types that are skipped
 

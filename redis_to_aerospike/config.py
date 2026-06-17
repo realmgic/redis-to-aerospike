@@ -103,6 +103,19 @@ class TtlOverflowPolicy(str, Enum):
     NEVER_EXPIRE = "never_expire"
 
 
+class RecordExistsPolicy(str, Enum):
+    """How writes behave when the Aerospike record already exists.
+
+    * ``UPDATE``       -- create or update; new bins merge with existing (default).
+    * ``REPLACE``      -- create or full replace so the record matches this write only.
+    * ``CREATE_ONLY``  -- insert only; existing records are left unchanged (counted as skipped).
+    """
+
+    UPDATE = "update"
+    REPLACE = "replace"
+    CREATE_ONLY = "create_only"
+
+
 @dataclass(frozen=True)
 class AerospikeSetRoute:
     """Maps a Redis key glob (``fnmatch``) to an Aerospike set; first match wins."""
@@ -275,6 +288,9 @@ class AerospikeConfig:
     # Keys that match none use ``set_name``. Does not change Redis SCAN behavior.
     set_routes: List[AerospikeSetRoute] = field(default_factory=list)
 
+    # When a record already exists: merge (update), full replace, or create-only.
+    record_exists_policy: RecordExistsPolicy = RecordExistsPolicy.UPDATE
+
     @classmethod
     def from_env(cls, env: Optional[dict] = None) -> "AerospikeConfig":
         env = os.environ if env is None else env
@@ -304,6 +320,9 @@ class AerospikeConfig:
                 env.get("AEROSPIKE_USE_SERVICES_ALTERNATE"), cls.use_services_alternate
             ),
             send_key=_as_bool(env.get("AEROSPIKE_SEND_KEY"), cls.send_key),
+            record_exists_policy=RecordExistsPolicy(
+                env.get("AEROSPIKE_RECORD_EXISTS_POLICY", cls.record_exists_policy.value)
+            ),
         )
 
     @classmethod
@@ -325,6 +344,9 @@ class AerospikeConfig:
 
         if "set_routes" in data:
             cfg.set_routes = _parse_set_routes(data.pop("set_routes"))
+
+        if "record_exists_policy" in data:
+            cfg.record_exists_policy = RecordExistsPolicy(data.pop("record_exists_policy"))
 
         for key, value in data.items():
             if hasattr(cfg, key):

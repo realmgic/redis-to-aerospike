@@ -21,7 +21,8 @@ import queue
 import threading
 from typing import List, Optional, Protocol
 
-from .config import MigrationConfig
+from .aerospike_sink import BATCH_RECORD_EXISTS_OUTCOME, RecordAlreadyExists
+from .config import MigrationConfig, RecordExistsPolicy
 from .converters.registry import ConverterRegistry, UnsupportedTypeError
 from .models import AerospikeRecord, RedisRecord
 from .progress import ProgressReporter
@@ -163,6 +164,10 @@ class Migrator:
         try:
             self._write_limiter.acquire(1)
             self._sink.write(record)
+        except RecordAlreadyExists:
+            self.stats.record_skipped("exists")
+            logger.debug("skipped existing key '%s' (create_only)", key)
+            return
         except Exception as exc:  # write error
             self.stats.record_error(f"write:{type(exc).__name__}")
             logger.warning("write failed for key '%s': %s", key, exc)
@@ -191,6 +196,12 @@ class Migrator:
         for (_, key), outcome in zip(buffer, results):
             if outcome is None:
                 self.stats.record_migrated()
+            elif (
+                self._config.aerospike.record_exists_policy is RecordExistsPolicy.CREATE_ONLY
+                and outcome == BATCH_RECORD_EXISTS_OUTCOME
+            ):
+                self.stats.record_skipped("exists")
+                logger.debug("skipped existing key '%s' (create_only batch)", key)
             else:
                 self.stats.record_error(f"write:{outcome}")
                 logger.warning("write failed for key '%s': %s", key, outcome)

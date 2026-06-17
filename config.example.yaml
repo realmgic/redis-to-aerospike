@@ -82,6 +82,9 @@ aerospike:
   # --- Misc ---
   use_services_alternate: false  # use alternate-access address (NAT / cloud / Docker)
   send_key: false                # store the primary key alongside the record
+  # When the Aerospike record already exists: merge bins (update), full replace,
+  # or skip (create_only; counted as skipped in the summary).
+  # record_exists_policy: update   # update | replace | create_only
 
 # --- Pipeline ---
 workers: 8                 # default: 8
