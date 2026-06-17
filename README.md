@@ -6,10 +6,34 @@ goes. It streams keys out of Redis with `SCAN` and writes them with a pool of
 worker threads, so it stays fast and memory-bounded even on large keyspaces.
 
 The data model stays key-value to key-value: a Redis key becomes an Aerospike
-record ``(namespace, set, primary_key)``, and its value becomes a native type.
-With **set routes**, ``set`` and often ``primary_key`` are derived from the route
-pattern (see [Transferring data](docs/04-transferring-data.md)); otherwise
-``primary_key`` is the full Redis key and ``set`` comes from ``--aerospike-set``.
+record ``(namespace, set, primary_key)``, and its value becomes a native type. With
+**set routes**, ``set`` and often ``primary_key`` are derived from the route pattern
+(see [Transferring data](docs/04-transferring-data.md)); otherwise ``primary_key``
+is the full Redis key and ``set`` comes from ``--aerospike-set``.
+
+## Main features
+
+- **Native Aerospike types** — Migrates Redis strings, hashes, lists, sets, and
+  sorted sets (plus TTLs) into appropriate bins, lists, and maps; unsupported types
+  (e.g. Streams) are skipped and counted in the summary.
+- **Multithreaded pipeline** — A producer streams `SCAN` results into a **bounded
+  queue**; a pool of **worker threads** (default 8, `--workers`) converts and writes
+  in parallel so the run stays fast without loading the whole keyspace into memory.
+- **Key placement** — Narrow the source with Redis `SCAN` `MATCH`
+  (`redis.scan_match`, `--redis-match`); optionally map key patterns to Aerospike
+  sets (and shorter user keys) with `set_routes` / `--set-route`. See
+  [Transferring data](docs/04-transferring-data.md).
+- **Flexible configuration** — **CLI**, **YAML** (`--config`), and **environment
+  variables**; any CLI flag you pass overrides the matching YAML value
+  ([Configuration reference](docs/07-configuration-reference.md)).
+- **Serious connectivity** — Redis standalone or **Cluster**, **TLS** / mutual TLS,
+  **ACL** auth, and connection **URLs**; Aerospike **multi-host**, Enterprise **auth**
+  modes, **TLS** / mutual TLS, and client timeouts ([Redis](docs/02-connecting-redis.md),
+  [Aerospike](docs/03-connecting-aerospike.md)).
+- **Tuning and safety** — Scan and write **rate limits**, **batch** writes to
+  Aerospike, hash layout strategies, **TTL overflow** policies, dry-run **preview**,
+  namespace checks, progress **heartbeat**, and a final **summary** (throughput,
+  skips, errors) with meaningful **exit codes** ([Running and tuning](docs/05-running-and-tuning.md)).
 
 > **New here?** The [user guide](docs/README.md) has step-by-step instructions
 > for installing, connecting each database, transferring data, tuning, and
@@ -18,8 +42,8 @@ pattern (see [Transferring data](docs/04-transferring-data.md)); otherwise
 > **Example software — not for production as-is.** This repository is provided as
 > a **reference example** only. **Do not rely on it in production** without your
 > own security review, testing, hardening, and operational ownership. Everything
-> here is offered **as-is**, with **no warranty**, and **no promise of support,
-> maintenance, or ongoing updates.**
+> here is offered **as-is**, with **no warranty**, and
+> **no promise of support, maintenance, or ongoing updates.**
 
 ## Type mapping
 
@@ -32,15 +56,19 @@ pattern (see [Transferring data](docs/04-transferring-data.md)); otherwise
 | Sorted Set | **Key-ordered** Aerospike Map (`MAP_KEY_ORDERED`) of `{member: score}`. |
 | TTL | Redis ms TTL -> Aerospike second TTL; no expiry -> never-expire. |
 
-Only these types are migrated; other types (e.g. Streams) are skipped and counted
-in the run summary. See [Transferring data](docs/04-transferring-data.md) for
-details, including TTL boundary handling, large-record limits, **Redis SCAN
-filtering** (`scan_match`), and **per-pattern Aerospike set routing** (`set_routes`).
+Only these types are migrated; other types (e.g. Streams) are skipped and counted in
+the run summary. See [Transferring data](docs/04-transferring-data.md) for details,
+including TTL boundary handling, large-record limits, **Redis SCAN filtering**
+(`scan_match`), and **per-pattern Aerospike set routing** (`set_routes`).
 
 ## Key placement
 
-- **Narrow what Redis returns:** `redis.scan_match` in YAML, or `--redis-match` / `--redis-key-pattern` on the CLI (Redis `SCAN` `MATCH` only).
-- **Choose the Aerospike set (and optional key suffix) per pattern:** `aerospike.set_routes` in YAML, or repeatable `--set-route PATTERN=SET` (first match wins; a single `*` in the pattern strips fixed literals from the Aerospike user key—see docs).
+- **Narrow what Redis returns:** `redis.scan_match` in YAML, or `--redis-match` /
+  `--redis-key-pattern` on the CLI (Redis `SCAN` `MATCH` only).
+- **Choose the Aerospike set (and optional key suffix) per pattern:**
+  `aerospike.set_routes` in YAML, or repeatable `--set-route PATTERN=SET` (first match
+  wins; a single `*` in the pattern strips fixed literals from the Aerospike user
+  key—see docs).
 
 See [Transferring data](docs/04-transferring-data.md) for details and limitations.
 
@@ -69,9 +97,8 @@ From a clone of this repository, install in editable mode with the dev extras
 pip install -e ".[dev]"
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for running the test suite and opening pull
-requests. The [getting started guide](docs/01-getting-started.md) also mentions
-this install path.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for running the test suite and opening pull requests.
+The [getting started guide](docs/01-getting-started.md) also mentions this install path.
 
 ## Quick start
 
@@ -106,9 +133,18 @@ list.
 
 ### Sample data for migration tests
 
-The script [`scripts/sample_redis_seed.py`](scripts/sample_redis_seed.py) loads **10,000** keys (by default) across all supported Redis types—string, hash, list, set, and sorted set—with mixed values and some expiring strings. Keys are prefixed with `sample:migrate:`.
+The script [`scripts/sample_redis_seed.py`](scripts/sample_redis_seed.py) loads
+**10,000** keys (by default) across all supported Redis types—string, hash, list,
+set, and sorted set—with mixed values and some expiring strings. Keys are prefixed
+with `sample:migrate:`.
 
-[`scripts/sample_redis_seed_routing.py`](scripts/sample_redis_seed_routing.py) seeds **`sample:route:`** keys (`user:*`, `session:*`, `cache:*`, `ledger:*`) for **`--set-route`** / `set_routes` demos. **Default is at least 10,000 keys** (`--count`); use `--per-route N` for a smaller fixed layout. With the example routes, Aerospike user keys are the short suffix after each prefix (e.g. ``7`` in set ``users``, not the full Redis key). See the script’s docstring for example CLI and YAML.
+[`scripts/sample_redis_seed_routing.py`](scripts/sample_redis_seed_routing.py) seeds
+**`sample:route:`** keys (`user:*`, `session:*`, `cache:*`, `ledger:*`) for
+**`--set-route`** / `set_routes` demos. **Default is at least 10,000 keys**
+(`--count`); use `--per-route N` for a smaller fixed layout. With the example routes,
+Aerospike user keys are the short suffix after each prefix (e.g. ``7`` in set
+``users``, not the full Redis key). See the script’s docstring for example CLI and
+YAML.
 
 ```bash
 python scripts/sample_redis_seed.py              # default localhost:6379, 10k keys
@@ -120,7 +156,8 @@ python scripts/sample_redis_seed_routing.py --count 50000 --flush
 python scripts/sample_redis_seed_routing.py --per-route 50   # small fixed layout (262 keys)
 ```
 
-Then run `redis-to-aerospike` with the same Redis host/port against your Aerospike namespace.
+Then run `redis-to-aerospike` with the same Redis host/port against your Aerospike
+namespace.
 
 ## Configuring the tool
 
@@ -151,17 +188,17 @@ Passwords are never printed. See:
 
 A run prints, in order:
 
-1. **Preview** -- a summary of both sides and the pipeline settings, before any
-   write. `--dry-run` stops here.
-2. **Checks** -- warnings based on the Aerospike namespace settings (e.g. TTL
-   eviction disabled).
-3. **Delimiter** -- the same three-line banner (`redis-to-aerospike: migration`
-   between rule lines) is logged **twice**: once right before records are read and
-   written, and once right after the write phase finishes (before the summary), so
-   you can spot the migration window in a long log file.
+1. **Preview** -- a summary of both sides and the pipeline settings, before any write.
+   `--dry-run` stops here.
+2. **Checks** -- warnings based on the Aerospike namespace settings (e.g. TTL eviction
+   disabled).
+3. **Delimiter** -- the same three-line banner (`redis-to-aerospike: migration` between
+   rule lines) is logged **twice**: once right before records are read and written,
+   and once right after the write phase finishes (before the summary), so you can spot
+   the migration window in a long log file.
 4. **Progress** -- a compact heartbeat line every `--progress-interval` seconds.
-5. **Summary** -- final counters (scanned, migrated, skipped, errors), timing,
-   throughput, and skip/error breakdowns.
+5. **Summary** -- final counters (scanned, migrated, skipped, errors), timing, throughput,
+   and skip/error breakdowns.
 
 Exit codes: `0` success, `1` completed with errors, `2` could not connect. See
 [Running and tuning](docs/05-running-and-tuning.md) and
@@ -181,12 +218,13 @@ Exit codes: `0` success, `1` completed with errors, `2` could not connect. See
 
 ## Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set
-up a development environment, run the tests, and open a pull request.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a
+development environment, run the tests, and open a pull request.
 
 ## Author
 
-Personal project by **[Zohar Elkayam](https://github.com/realmgic)** (@realmgic). It is not an official Aerospike, Inc. product.
+Personal project by **[Zohar Elkayam](https://github.com/realmgic)** (@realmgic). It is
+not an official Aerospike, Inc. product.
 
 ## License
 
