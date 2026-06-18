@@ -10,6 +10,8 @@ and extend:
 * ``migrator``       -- a multi-threaded producer/consumer pipeline tying it together.
 """
 
+from .version import __version__
+
 from .config import (
     AerospikeConfig,
     AerospikeSetRoute,
@@ -23,6 +25,7 @@ from .migrator import Migrator
 from .stats import MigrationStats
 
 __all__ = [
+    "__version__",
     "AerospikeConfig",
     "AerospikeRecord",
     "AerospikeSetRoute",

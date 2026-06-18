@@ -9,6 +9,14 @@ from redis_to_aerospike.aerospike_sink import AerospikeServerInfo
 from redis_to_aerospike.config import MigrationConfig, RecordExistsPolicy
 from redis_to_aerospike.log_banners import BANNER_TITLE
 from redis_to_aerospike.stats import MigrationStats
+from redis_to_aerospike.version import __version__
+
+
+def test_version_flag(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        cli.parse_args(["--version"])
+    assert exc_info.value.code == 0
+    assert __version__ in capsys.readouterr().out
 
 
 def test_parse_args_defaults():

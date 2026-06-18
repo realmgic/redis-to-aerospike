@@ -18,6 +18,7 @@ from .converters.registry import ConverterRegistry
 from .log_banners import log_migration_banner
 from .migrator import Migrator
 from .redis_source import RedisSource
+from .version import __version__
 
 logger = logging.getLogger("redis_to_aerospike.cli")
 
@@ -131,6 +132,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="redis-to-aerospike",
         description="Migrate Redis data into Aerospike using native Aerospike types.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
 
     parser.add_argument(

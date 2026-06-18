@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "redis-to-aerospike"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Migrate Redis data into Aerospike using native Aerospike types, with a pluggable converter layer and multi-threaded writes."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,9 @@ Repository = "https://github.com/realmgic/redis-to-aerospike"
 
 [project.scripts]
 redis-to-aerospike = "redis_to_aerospike.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "redis_to_aerospike.version.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["."]

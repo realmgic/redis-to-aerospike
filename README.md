@@ -88,7 +88,10 @@ Verify it installed:
 
 ```bash
 redis-to-aerospike --help
+redis-to-aerospike --version
 ```
+
+See [Versioning and changelog](#versioning-and-changelog) for the in-repo history.
 
 ### Develop from source
 
@@ -101,6 +104,27 @@ pip install -e ".[dev]"
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for running the test suite and opening pull requests.
 The [getting started guide](docs/01-getting-started.md) also mentions this install path.
+
+## Versioning and changelog
+
+- **Installed build:** run `redis-to-aerospike --version` (or
+  `python -c "import redis_to_aerospike; print(redis_to_aerospike.__version__)"`).
+- **History:** [CHANGELOG.md](CHANGELOG.md) lists notable changes by version.
+
+This project is a **reference example**; version numbers are for **traceability**
+(installs, forks, issue reports), not a promise of PyPI cadence or formal releases.
+
+### Versioning (for maintainers)
+
+When you want a new version label (no GitHub Release or PyPI step required):
+
+1. Set `__version__` in [`redis_to_aerospike/version.py`](redis_to_aerospike/version.py)
+   (single source; `pyproject.toml` reads it at build time).
+2. In [`CHANGELOG.md`](CHANGELOG.md), move `[Unreleased]` notes into a dated
+   `## [x.y.z] - YYYY-MM-DD` section and open a fresh `[Unreleased]` at the top.
+3. Commit (for example: `chore: bump version to x.y.z`).
+
+Optional: `git tag vx.y.z` on that commit as a bookmark.
 
 ## Quick start
 

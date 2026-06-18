@@ -39,6 +39,8 @@ redis-to-aerospike \
 Every flag has a sensible default, so the only things you usually need to supply
 are where your Redis-compatible source is, where Aerospike is, and which namespace/set to write into.
 
+To see the installed revision, run `redis-to-aerospike --version`. Notable changes by version are in the repo root [CHANGELOG.md](../CHANGELOG.md).
+
 ## Pick your path
 
 - **Just trying it out?** Start with [Getting started](01-getting-started.md);
@@ -60,6 +62,7 @@ are where your Redis-compatible source is, where Aerospike is, and which namespa
 | [05 - Running and tuning](05-running-and-tuning.md) | Config methods, performance knobs, output, exit codes. |
 | [06 - Troubleshooting](06-troubleshooting.md) | Symptom -> cause -> fix for common failures. |
 | [07 - Configuration reference](07-configuration-reference.md) | Every flag, YAML key, env var, and default in one place. |
+| [Changelog](../CHANGELOG.md) | Version history and notable changes. |
 
 ## How you configure the tool
 
