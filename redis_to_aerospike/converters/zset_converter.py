@@ -21,8 +21,8 @@ from .base import Converter, decode_member
 
 
 def _encode_score(score: float):
-    value = float(score)
-    return value if math.isfinite(value) else str(value)
+    value = score
+    return value if isinstance(value, float) and math.isfinite(value) else str(value)
 
 
 class ZSetConverter(Converter):
