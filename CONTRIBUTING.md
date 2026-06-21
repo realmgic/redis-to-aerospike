@@ -74,6 +74,10 @@ You can still use `docker compose up -d` if you want local services for manual r
 5. Commit with a clear message and open a pull request against the original
    repository, describing what changed and why.
 
+## Version labels
+
+The published version string lives in [`redis_to_aerospike/version.py`](redis_to_aerospike/version.py) (builds and `redis2aerospike --version` read it from there). **Do not** bump it in routine PRs unless a maintainer asked you to; version and changelog updates are usually batched when cutting a new label. When you are expected to include a bump, follow [Versioning and changelog](README.md#versioning-and-changelog) in the README.
+
 ## Reporting issues
 
 Open an issue with:
