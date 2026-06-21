@@ -26,10 +26,10 @@ isolated:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install redis-to-aerospike
+pip install redis2aerospike
 ```
 
-This installs a command named `redis-to-aerospike` onto your `PATH`.
+This installs a command named `redis2aerospike` onto your `PATH`.
 
 > Working from a source checkout instead of the published package? Use
 > `pip install -e ".[dev]"` from the repository root. Everything in these docs
@@ -38,7 +38,7 @@ This installs a command named `redis-to-aerospike` onto your `PATH`.
 ## Verify the install
 
 ```bash
-redis-to-aerospike --help
+redis2aerospike --help
 ```
 
 You should see the usage text with grouped options (Redis source, Aerospike
@@ -77,7 +77,7 @@ Always do a dry run first. It connects to both sides, prints a preview of what
 confirm your connection settings are right.
 
 ```bash
-redis-to-aerospike \
+redis2aerospike \
   --redis-host localhost --redis-port 6379 \
   --aerospike-host localhost --aerospike-port 3000 \
   --aerospike-namespace test --aerospike-set redis \
@@ -94,7 +94,7 @@ and [Connecting to Aerospike](03-connecting-aerospike.md).
 Drop `--dry-run` and (optionally) set the number of worker threads:
 
 ```bash
-redis-to-aerospike \
+redis2aerospike \
   --redis-host localhost --redis-port 6379 \
   --aerospike-host localhost --aerospike-port 3000 \
   --aerospike-namespace test --aerospike-set redis \

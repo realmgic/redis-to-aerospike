@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load Redis with sample keys for redis-to-aerospike migration testing.
+"""Load Redis with sample keys for redis2aerospike migration testing.
 
 Creates keys under ``sample:migrate:`` using every Redis type the migrator
 supports: string, hash, list, set, and sorted set. Values are varied (ints,
@@ -12,7 +12,7 @@ Example::
 
     docker compose up -d
     python scripts/sample_redis_seed.py
-    redis-to-aerospike --redis-host localhost --redis-port 6379 \\
+    redis2aerospike --redis-host localhost --redis-port 6379 \\
         --aerospike-host localhost --aerospike-port 3000 
         --aerospike-namespace test --aerospike-set redis --aerospike-send-key \\
         --dry-run

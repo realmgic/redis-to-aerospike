@@ -79,7 +79,7 @@ how a Redis hash is represented:
   per-record bin count.
 
 ```bash
-redis-to-aerospike --redis-host localhost \
+redis2aerospike --redis-host localhost \
   --aerospike-host localhost --aerospike-namespace test --aerospike-set redis \
   --hash-strategy field_bins
 ```

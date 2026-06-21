@@ -30,7 +30,7 @@ The rules:
 
 ```bash
 # Load everything from the file, but override the namespace just for this run:
-redis-to-aerospike --config config.example.yaml --aerospike-namespace staging
+redis2aerospike --config config.example.yaml --aerospike-namespace staging
 ```
 
 A fully annotated example file ships with the project:
@@ -50,7 +50,7 @@ preview block, and exits **without writing anything**. Use it as a fast
 reachability and configuration check before a real run.
 
 ```bash
-redis-to-aerospike --config prod.yaml --dry-run
+redis2aerospike --config prod.yaml --dry-run
 ```
 
 ## Performance knobs
@@ -167,7 +167,7 @@ errors, otherwise at `INFO`.
 These make the tool easy to use in scripts and CI:
 
 ```bash
-if redis-to-aerospike --config prod.yaml; then
+if redis2aerospike --config prod.yaml; then
   echo "migration clean"
 else
   echo "migration had errors or could not connect (exit $?)" >&2
@@ -180,7 +180,7 @@ Because all output uses standard logging (to stderr), you can capture it like an
 other command:
 
 ```bash
-redis-to-aerospike --config prod.yaml --log-level INFO 2> migration.log
+redis2aerospike --config prod.yaml --log-level INFO 2> migration.log
 ```
 
 Next: [Troubleshooting](06-troubleshooting.md).

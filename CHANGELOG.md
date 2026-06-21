@@ -9,6 +9,10 @@ for installs and issue reports, not a formal product release cadence.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** PyPI distribution renamed from `redis-to-aerospike` to `redis2aerospike`; the installed CLI is now `redis2aerospike` (replacing `redis-to-aerospike`).
+
 ## [0.1.0] - 2026-06-18
 
 ### Added

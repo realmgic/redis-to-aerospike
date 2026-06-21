@@ -22,7 +22,7 @@ Example — seed then dry-run migration with routes (single SCAN, client-side ro
 
     docker compose up -d
     python scripts/sample_redis_seed_routing.py --flush
-    redis-to-aerospike --redis-host localhost --redis-port 6379 \
+    redis2aerospike --redis-host localhost --redis-port 6379 \
         --aerospike-host localhost --aerospike-port 3000 \
         --aerospike-namespace test --aerospike-set redis \
         --aerospike-send-key \
@@ -160,7 +160,7 @@ def parse_args(argv: Iterable[str] | None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=__doc__.split("Example")[0].strip(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="See module docstring for full redis-to-aerospike examples.",
+        epilog="See module docstring for full redis2aerospike examples.",
     )
     p.add_argument("--host", default="127.0.0.1", help="Redis host")
     p.add_argument("--port", type=int, default=6379, help="Redis port")

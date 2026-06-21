@@ -130,7 +130,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     # with just the flags actually provided. Defaults live in config.py and are
     # documented in each flag's help text.
     parser = argparse.ArgumentParser(
-        prog="redis-to-aerospike",
+        prog="redis2aerospike",
         description="Migrate Redis data into Aerospike using native Aerospike types.",
     )
     parser.add_argument(

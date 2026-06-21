@@ -29,7 +29,7 @@ Each option below notes how it can be set.
 | Database number | `--redis-db` | `db` | `REDIS_DB` | `0` |
 
 ```bash
-redis-to-aerospike \
+redis2aerospike \
   --redis-host redis.internal --redis-port 6379 --redis-db 0 \
   --aerospike-host localhost --aerospike-namespace test --aerospike-set redis
 ```
@@ -45,7 +45,7 @@ Password-only (legacy `requirepass`):
 
 ```bash
 export REDIS_PASSWORD='your-redis-password'
-redis-to-aerospike --redis-host redis.internal \
+redis2aerospike --redis-host redis.internal \
   --aerospike-host localhost --aerospike-namespace test --aerospike-set redis
 ```
 
@@ -61,7 +61,7 @@ redis:
 ```
 
 ```bash
-redis-to-aerospike --config redis-acl.yaml \
+redis2aerospike --config redis-acl.yaml \
   --aerospike-host localhost --aerospike-namespace test --aerospike-set redis
 ```
 
@@ -132,7 +132,7 @@ subset, use a glob pattern:
 
 ```bash
 # Only migrate keys that start with "user:"
-redis-to-aerospike --redis-host redis.internal --redis-match 'user:*' \
+redis2aerospike --redis-host redis.internal --redis-match 'user:*' \
   --aerospike-host localhost --aerospike-namespace test --aerospike-set redis
 ```
 
@@ -153,7 +153,7 @@ Connection/read timeouts in **seconds** (redis-py convention). YAML/env only:
 **Standalone, no auth (local/dev):**
 
 ```bash
-redis-to-aerospike --redis-host localhost --redis-port 6379 \
+redis2aerospike --redis-host localhost --redis-port 6379 \
   --aerospike-host localhost --aerospike-namespace test --aerospike-set redis
 ```
 

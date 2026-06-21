@@ -1,6 +1,6 @@
-# Contributing to redis-to-aerospike
+# Contributing to redis2aerospike
 
-Thanks for your interest in improving `redis-to-aerospike`! This repository is a
+Thanks for your interest in improving `redis2aerospike`! This repository is a
 **personal project** by [Zohar Elkayam](https://github.com/realmgic) (`@realmgic`).
 Contributions of all kinds are welcome: bug reports, documentation fixes, and code.
 
@@ -80,7 +80,7 @@ Open an issue with:
 
 - What you expected to happen and what actually happened.
 - Steps to reproduce (commands, config, sample data if possible).
-- Versions: Python, `redis-to-aerospike`, Redis or Valkey, and Aerospike.
+- Versions: Python, `redis2aerospike`, Redis or Valkey, and Aerospike.
 
 Please do not include passwords, tokens, or other secrets in issues or pull
 requests.

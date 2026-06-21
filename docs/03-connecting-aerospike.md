@@ -15,7 +15,7 @@ For a single node, use the host/port flags. The default port is `3000`.
 | Port | `--aerospike-port` | `port` | `AEROSPIKE_PORT` | `3000` |
 
 ```bash
-redis-to-aerospike --redis-host localhost \
+redis2aerospike --redis-host localhost \
   --aerospike-host aerospike.internal --aerospike-port 3000 \
   --aerospike-namespace prod --aerospike-set redis
 ```
@@ -69,7 +69,7 @@ For security-enabled Enterprise clusters:
 
 ```bash
 export ASD_PASSWORD='your-aerospike-password'
-redis-to-aerospike --redis-host localhost \
+redis2aerospike --redis-host localhost \
   --aerospike-host secure.example.com --aerospike-port 4333 \
   --aerospike-username admin --aerospike-password "$ASD_PASSWORD" \
   --aerospike-namespace prod --aerospike-set redis
@@ -96,7 +96,7 @@ Key points:
 
 ```bash
 # TLS + authentication
-redis-to-aerospike --redis-host localhost \
+redis2aerospike --redis-host localhost \
   --aerospike-host secure.example.com --aerospike-port 4333 \
   --aerospike-username admin --aerospike-password "$ASD_PASSWORD" \
   --aerospike-tls-enable --aerospike-tls-name secure.example.com \
@@ -127,7 +127,7 @@ server's **alternate-access** address:
 | Use alternate services | `--aerospike-use-services-alternate` | `use_services_alternate` | `AEROSPIKE_USE_SERVICES_ALTERNATE` | `false` |
 
 ```bash
-redis-to-aerospike --redis-host localhost \
+redis2aerospike --redis-host localhost \
   --aerospike-host public.example.com --aerospike-port 3000 \
   --aerospike-use-services-alternate \
   --aerospike-namespace prod --aerospike-set redis
@@ -155,7 +155,7 @@ line turns the option **on**. There is no `--no-...` form. To explicitly turn on
 **Local, no auth (the Docker compose instance):**
 
 ```bash
-redis-to-aerospike --redis-host localhost \
+redis2aerospike --redis-host localhost \
   --aerospike-host localhost --aerospike-port 3000 \
   --aerospike-namespace test --aerospike-set redis
 ```

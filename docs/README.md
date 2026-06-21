@@ -1,6 +1,6 @@
-# redis-to-aerospike user guide
+# redis2aerospike user guide
 
-`redis-to-aerospike` is a command-line tool that copies data from **Redis** (or
+`redis2aerospike` is a command-line tool that copies data from **Redis** (or
 **Valkey** and other **Redis-compatible** servers) into **Aerospike**, converting
 each Redis value into a **native Aerospike type** as it goes (strings stay scalars,
 hashes become maps, lists/sets become lists, sorted sets become maps). It streams
@@ -19,17 +19,17 @@ warranty**, and **no commitment to support, maintenance, or updates.**
 
 ```bash
 # 1. Install
-pip install redis-to-aerospike
+pip install redis2aerospike
 
 # 2. (optional) Preview what would happen, without writing anything
-redis-to-aerospike \
+redis2aerospike \
   --redis-host localhost --redis-port 6379 \
   --aerospike-host localhost --aerospike-port 3000 \
   --aerospike-namespace test --aerospike-set redis \
   --dry-run
 
 # 3. Run the real migration
-redis-to-aerospike \
+redis2aerospike \
   --redis-host localhost --redis-port 6379 \
   --aerospike-host localhost --aerospike-port 3000 \
   --aerospike-namespace test --aerospike-set redis \
@@ -39,7 +39,7 @@ redis-to-aerospike \
 Every flag has a sensible default, so the only things you usually need to supply
 are where your Redis-compatible source is, where Aerospike is, and which namespace/set to write into.
 
-To see the installed revision, run `redis-to-aerospike --version`. Notable changes by version are in the repo root [CHANGELOG.md](../CHANGELOG.md).
+To see the installed revision, run `redis2aerospike --version`. Notable changes by version are in the repo root [CHANGELOG.md](../CHANGELOG.md).
 
 ## Pick your path
 

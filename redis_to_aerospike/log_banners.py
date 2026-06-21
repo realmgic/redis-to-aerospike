@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 LOG_RULE = "-" * 72
-BANNER_TITLE = "redis-to-aerospike: migration"
+BANNER_TITLE = "redis2aerospike: migration"
 
 
 def log_migration_banner(logger: logging.Logger) -> None:

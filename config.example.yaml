@@ -1,6 +1,6 @@
-# Example configuration for redis-to-aerospike.
+# Example configuration for redis2aerospike.
 #
-# Pass it with:  redis-to-aerospike --config config.example.yaml
+# Pass it with:  redis2aerospike --config config.example.yaml
 #
 # The file is OPTIONAL. When provided it is the BASE configuration; any flag you
 # also pass on the command line overrides the matching value here. Every key is

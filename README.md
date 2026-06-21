@@ -1,6 +1,6 @@
 # Redis to Aerospike Migrator
 
-`redis-to-aerospike` is a command-line tool that copies data from **Redis** (or
+`redis2aerospike` is a command-line tool that copies data from **Redis** (or
 **Valkey** and other **Redis-compatible** servers using the same protocol) into
 **Aerospike**, converting each Redis value into a **native Aerospike type** as it
 goes. It streams keys out of Redis with `SCAN` and writes them with a pool of
@@ -81,14 +81,14 @@ Requires **Python 3.10+**.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install redis-to-aerospike
+pip install redis2aerospike
 ```
 
 Verify it installed:
 
 ```bash
-redis-to-aerospike --help
-redis-to-aerospike --version
+redis2aerospike --help
+redis2aerospike --version
 ```
 
 See [Versioning and changelog](#versioning-and-changelog) for the in-repo history.
@@ -107,7 +107,7 @@ The [getting started guide](docs/01-getting-started.md) also mentions this insta
 
 ## Versioning and changelog
 
-- **Installed build:** run `redis-to-aerospike --version` (or
+- **Installed build:** run `redis2aerospike --version` (or
   `python -c "import redis_to_aerospike; print(redis_to_aerospike.__version__)"`).
 - **History:** [CHANGELOG.md](CHANGELOG.md) lists notable changes by version.
 
@@ -137,7 +137,7 @@ docker compose up -d
 Preview what would happen, without writing anything:
 
 ```bash
-redis-to-aerospike \
+redis2aerospike \
   --redis-host localhost --redis-port 6379 \
   --aerospike-host localhost --aerospike-port 3000 \
   --aerospike-namespace test --aerospike-set redis \
@@ -147,14 +147,14 @@ redis-to-aerospike \
 Run the migration:
 
 ```bash
-redis-to-aerospike \
+redis2aerospike \
   --redis-host localhost --redis-port 6379 \
   --aerospike-host localhost --aerospike-port 3000 \
   --aerospike-namespace test --aerospike-set redis \
   --workers 8
 ```
 
-Every flag has a sensible default; run `redis-to-aerospike --help` for the full
+Every flag has a sensible default; run `redis2aerospike --help` for the full
 list.
 
 ### Sample data for migration tests
@@ -182,7 +182,7 @@ python scripts/sample_redis_seed_routing.py --count 50000 --flush
 python scripts/sample_redis_seed_routing.py --per-route 50   # small fixed layout (262 keys)
 ```
 
-Then run `redis-to-aerospike` with the same Redis host/port against your Aerospike
+Then run `redis2aerospike` with the same Redis host/port against your Aerospike
 namespace.
 
 ## Configuring the tool
@@ -219,7 +219,7 @@ A run prints, in order:
    `--dry-run` stops here.
 2. **Checks** -- warnings based on the Aerospike namespace settings (e.g. TTL eviction
    disabled).
-3. **Delimiter** -- the same three-line banner (`redis-to-aerospike: migration` between
+3. **Delimiter** -- the same three-line banner (`redis2aerospike: migration` between
    rule lines) is logged **twice**: once right before records are read and written,
    and once right after the write phase finishes (before the summary), so you can spot
    the migration window in a long log file.

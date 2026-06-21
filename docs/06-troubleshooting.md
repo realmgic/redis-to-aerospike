@@ -11,7 +11,7 @@ preview, and exits without writing. It isolates connection/config problems from
 data problems in seconds.
 
 ```bash
-redis-to-aerospike --config prod.yaml --dry-run
+redis2aerospike --config prod.yaml --dry-run
 ```
 
 ## Connection failures (exit code 2)
@@ -153,7 +153,7 @@ Run with `--log-level DEBUG` for per-record detail (including skipped keys and
 the specific exceptions), and capture it to a file:
 
 ```bash
-redis-to-aerospike --config prod.yaml --log-level DEBUG 2> debug.log
+redis2aerospike --config prod.yaml --log-level DEBUG 2> debug.log
 ```
 
 For a full list of options, see the
