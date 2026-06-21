@@ -48,7 +48,7 @@ Notes:
 
 ## Aerospike sink (YAML section: `aerospike:`)
 
-> Every Aerospike option has a CLI flag **and** an environment variable.
+> Most Aerospike options have a matching CLI flag **and** environment variable. Exceptions include `hosts`, `set_routes`, and `max_record_size` (YAML-only for the structured values; `set_routes` can also be supplied with repeated `--set-route`).
 
 | Option | CLI flag | YAML key | Env var | Default |
 | --- | --- | --- | --- | --- |
@@ -71,11 +71,45 @@ Notes:
 | Login timeout (ms) | `--aerospike-login-timeout-ms` | `login_timeout_ms` | `AEROSPIKE_LOGIN_TIMEOUT_MS` | `5000` |
 | Namespace | `--aerospike-namespace` | `namespace` | `AEROSPIKE_NAMESPACE` | `test` |
 | Set | `--aerospike-set` | `set_name` | `AEROSPIKE_SET` | `redis` |
+| Set routes | `--set-route` | `set_routes` | - | none (repeatable; see [Set routes](#set-routes) below) |
 | Value bin name | `--value-bin` | `value_bin` | `AEROSPIKE_VALUE_BIN` | `value` |
 | Send key with record | `--aerospike-send-key` | `send_key` | `AEROSPIKE_SEND_KEY` | `false` |
 | Record exists policy | `--aerospike-record-exists-policy` | `record_exists_policy` | `AEROSPIKE_RECORD_EXISTS_POLICY` | `update` (`update`/`replace`/`create_only`) |
 | Max record size (bytes) | - | `max_record_size` | `AEROSPIKE_MAX_RECORD_SIZE` | `8388608` (8 MiB) |
 | Max TTL (s) | `--max-ttl` | `max_ttl` | `AEROSPIKE_MAX_TTL` | `315360000` (10y); `0` disables |
+
+### Set routes
+
+Set routes choose the **Aerospike set** (and optionally the **primary key** shape) **after** a key is read from Redis. They do **not** change what Redis `SCAN` returns; use `redis.scan_match` to narrow the keyspace. There is no environment-variable form for the route list; use YAML `set_routes` or repeated `--set-route`. Full behavior (key stripping, binary keys, SCAN limits) is described in [Transferring data — Redis source filter vs Aerospike set routing](04-transferring-data.md#redis-source-filter-vs-aerospike-set-routing).
+
+| Mechanism | CLI | YAML | Env |
+| --- | --- | --- | --- |
+| Routes | Repeatable `--set-route …` | `aerospike.set_routes` (list of mappings) | none |
+
+**Semantics**
+
+- **Order:** list order matters; **first matching pattern wins** (Python [`fnmatch`](https://docs.python.org/3/library/fnmatch.html) on UTF-8 string keys).
+- **Default:** keys that match no route use `aerospike.set_name` / `--aerospike-set` and keep the full Redis key as the Aerospike user key.
+- **Binary Redis keys** (`bytes`): routes are not applied; default set and full key are always used.
+
+**Per-route mapping (each YAML list item, or one CLI token)**
+
+| Field | Required | Values / notes |
+| --- | --- | --- |
+| `pattern` | yes | Glob matched against the Redis key string. |
+| `destination` | yes | Aerospike set name for matching keys. |
+| `hash_strategy` | no | `map_bin` or `field_bins`. If omitted, the pipeline default `hash_strategy` (top-level YAML / `--hash-strategy` / `MIGRATION_HASH_STRATEGY`) applies. |
+| `value_bin` | no | Aerospike **bin name** for the single map when the **effective** hash strategy for that record is `map_bin`. If omitted, `aerospike.value_bin` applies. **Ignored** when the effective strategy is `field_bins` (each hash field becomes its own bin). |
+
+**CLI `--set-route` token forms** (split on `=`, at most four segments; `=` cannot appear inside `pattern` or `destination` with this syntax):
+
+| Form | Example | Effect |
+| --- | --- | --- |
+| `PATTERN=SET` | `user:*=users` | Set only; global `hash_strategy` and `value_bin` for hashes. |
+| `PATTERN=SET=strategy` | `ledger:*=ledgers=field_bins` | Same plus route-level `hash_strategy`. |
+| `PATTERN=SET=map_bin=BIN` | `user:*=users=map_bin=profile` | Requires third segment exactly `map_bin`; fourth segment is the map bin name. |
+
+More examples and migration semantics for per-route hashes are in [Transferring data — Per-route hash layout](04-transferring-data.md#per-route-hash-layout-set-routes).
 
 Notes:
 
@@ -89,10 +123,6 @@ Notes:
   **`replace`** replaces the whole record so it matches only this migration’s bins
   (extra bins from earlier writes are removed); **`create_only`** skips the write
   and counts the key under **skipped** (`exists`) if a record already exists.
-- ``set_routes`` (YAML list) and repeatable ``--set-route`` on the CLI map Redis key
-  globs to Aerospike sets (see [Transferring data](04-transferring-data.md)). Each
-  route may set optional ``hash_strategy`` and ``value_bin`` (map-bin name; only
-  used when the effective hash strategy is ``map_bin``).
 
 ## Pipeline (YAML: top level)
 
