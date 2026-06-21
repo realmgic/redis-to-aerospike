@@ -66,5 +66,17 @@ class ConverterRegistry:
     def supports(self, redis_type: str) -> bool:
         return redis_type in self._converters
 
-    def convert(self, record: RedisRecord) -> AerospikeRecord:
+    def convert(
+        self,
+        record: RedisRecord,
+        *,
+        hash_strategy: Optional[HashStrategy] = None,
+        value_bin: Optional[str] = None,
+    ) -> AerospikeRecord:
+        if record.type == "hash":
+            hc = self.get("hash")
+            assert isinstance(hc, HashConverter)
+            return hc.convert(
+                record, strategy=hash_strategy, value_bin=value_bin
+            )
         return self.get(record.type).convert(record)

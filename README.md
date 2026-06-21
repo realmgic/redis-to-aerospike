@@ -68,8 +68,9 @@ including TTL boundary handling, large-record limits, **Redis SCAN filtering**
 - **Narrow what Redis returns:** `redis.scan_match` in YAML, or `--redis-match` /
   `--redis-key-pattern` on the CLI (Redis `SCAN` `MATCH` only).
 - **Choose the Aerospike set (and optional key suffix) per pattern:**
-  `aerospike.set_routes` in YAML, or repeatable `--set-route PATTERN=SET` (first match
-  wins; a single `*` in the pattern strips fixed literals from the Aerospike user
+  `aerospike.set_routes` in YAML, or repeatable `--set-route` (forms: `PATTERN=SET`,
+  `PATTERN=SET=hash_strategy`, or `PATTERN=SET=map_bin=CUSTOM_BIN` for a map bin name;
+  first match wins; a single `*` in the pattern strips fixed literals from the Aerospike user
   key—see docs).
 
 See [Transferring data](docs/04-transferring-data.md) for details and limitations.

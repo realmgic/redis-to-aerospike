@@ -117,11 +117,33 @@ def build_config(args: argparse.Namespace) -> MigrationConfig:
 
 
 def _parse_set_route_cli(token: str):
-    """``argparse`` type for ``--set-route PATTERN=SET`` (first ``=`` separates)."""
+    """``argparse`` type for ``--set-route`` (see flag help for token forms)."""
     if "=" not in token:
-        raise argparse.ArgumentTypeError("expected PATTERN=SET_NAME")
-    pattern, _, destination = token.partition("=")
-    return _parse_set_routes([{"pattern": pattern, "destination": destination}])[0]
+        raise argparse.ArgumentTypeError(
+            "expected PATTERN=SET_NAME, optionally PATTERN=SET=hash_strategy or "
+            "PATTERN=SET=map_bin=CUSTOM_BIN"
+        )
+    parts = token.split("=", 3)
+    if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
+        raise argparse.ArgumentTypeError("PATTERN and SET_NAME must be non-empty")
+    mapping: Dict[str, str] = {"pattern": parts[0], "destination": parts[1]}
+    if len(parts) >= 3:
+        hs = parts[2].strip()
+        if hs:
+            mapping["hash_strategy"] = hs
+    if len(parts) == 4:
+        if mapping.get("hash_strategy") != HashStrategy.MAP_BIN.value:
+            raise argparse.ArgumentTypeError(
+                "four-token --set-route requires the third segment to be map_bin "
+                "before the map bin name"
+            )
+        vb = parts[3].strip()
+        if not vb:
+            raise argparse.ArgumentTypeError(
+                "four-token --set-route requires a non-empty map bin name as the fourth segment"
+            )
+        mapping["value_bin"] = vb
+    return _parse_set_routes([mapping])[0]
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
@@ -249,8 +271,9 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         type=_parse_set_route_cli,
         default=sup,
         metavar="PATTERN=SET",
-        help="glob match on Redis key -> Aerospike set (repeatable; first match wins; "
-        "unmatched keys use --aerospike-set)",
+        help="glob on Redis key -> Aerospike set (repeatable; first match wins). "
+        "Forms: PATTERN=SET; PATTERN=SET=hash_strategy (map_bin|field_bins); "
+        "PATTERN=SET=map_bin=BIN_NAME for a custom map bin name.",
     )
     aero.add_argument(
         "--value-bin", default=sup, help="bin name for single-value records (default: value)"
@@ -439,7 +462,13 @@ def render_preview(
     if aero.set_routes:
         lines.append(f"    set (default) : {aero.set_name}")
         for i, route in enumerate(aero.set_routes, start=1):
-            lines.append(f"    set route {i}   : {route.pattern} -> {route.destination}")
+            bits: List[str] = []
+            if route.hash_strategy is not None:
+                bits.append(f"hash_strategy={route.hash_strategy.value}")
+            if route.value_bin is not None:
+                bits.append(f"value_bin={route.value_bin!r}")
+            suffix = f" ({', '.join(bits)})" if bits else ""
+            lines.append(f"    set route {i}   : {route.pattern} -> {route.destination}{suffix}")
     else:
         lines.append(f"    set         : {aero.set_name}")
     lines.extend(

@@ -285,6 +285,26 @@ def test_aerospike_from_dict_set_routes():
     assert cfg.set_routes[0].destination == "A"
 
 
+def test_aerospike_from_dict_set_routes_hash_and_value_bin():
+    cfg = AerospikeConfig.from_dict(
+        {
+            "set_routes": [
+                {"pattern": "x:*", "destination": "X", "hash_strategy": "field_bins"},
+                {
+                    "pattern": "y:*",
+                    "destination": "Y",
+                    "hash_strategy": "map_bin",
+                    "value_bin": "data",
+                },
+            ],
+        }
+    )
+    assert cfg.set_routes[0].hash_strategy is HashStrategy.FIELD_BINS
+    assert cfg.set_routes[0].value_bin is None
+    assert cfg.set_routes[1].hash_strategy is HashStrategy.MAP_BIN
+    assert cfg.set_routes[1].value_bin == "data"
+
+
 def test_redis_from_dict_key_pattern_alias():
     cfg = RedisConfig.from_dict({"key_pattern": "cache:*"})
     assert cfg.scan_match == "cache:*"

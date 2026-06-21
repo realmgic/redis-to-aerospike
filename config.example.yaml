@@ -78,6 +78,9 @@ aerospike:
   # set_routes:
   #   - pattern: "user:*"
   #     destination: users
+  #     # Optional per-route overrides (else pipeline hash_strategy / value_bin):
+  #     # hash_strategy: field_bins   # map_bin | field_bins
+  #     # value_bin: profile          # map bin name; only used when effective strategy is map_bin
   #   - pattern: "session:*"
   #     destination: sessions
   value_bin: value         # bin name for single-value records; default: value

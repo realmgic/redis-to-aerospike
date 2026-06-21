@@ -2,7 +2,8 @@
 """Load Redis with keys shaped for Aerospike *set routing* demos.
 
 Creates keys under ``sample:route:`` using prefixes that pair naturally with
-``aerospike.set_routes`` / ``--set-route``. By default at least **10,000** Redis
+``aerospike.set_routes`` / ``--set-route`` (including optional per-route
+``hash_strategy`` / ``value_bin`` for map hashes; see docs). By default at least **10,000** Redis
 keys are created (``--count``, tunable); use ``--per-route N`` to set an exact
 depth per domain instead.
 

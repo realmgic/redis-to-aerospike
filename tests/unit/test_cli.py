@@ -1,12 +1,13 @@
 """Smoke tests for the CLI wiring and exit codes."""
 
+import argparse
 import logging
 
 import pytest
 
 import redis_to_aerospike.cli as cli
 from redis_to_aerospike.aerospike_sink import AerospikeServerInfo
-from redis_to_aerospike.config import MigrationConfig, RecordExistsPolicy
+from redis_to_aerospike.config import HashStrategy, MigrationConfig, RecordExistsPolicy
 from redis_to_aerospike.log_banners import BANNER_TITLE
 from redis_to_aerospike.stats import MigrationStats
 from redis_to_aerospike.version import __version__
@@ -327,6 +328,40 @@ def test_set_route_flags_append_to_config():
     assert config.aerospike.set_routes[0].pattern == "user:*"
     assert config.aerospike.set_routes[0].destination == "users"
     assert config.aerospike.set_routes[1].destination == "caches"
+
+
+def test_set_route_three_tokens_sets_hash_strategy():
+    config = cli.build_config(
+        cli.parse_args(["--set-route", "ledger:*=ledgers=field_bins"])
+    )
+    r = config.aerospike.set_routes[0]
+    assert r.pattern == "ledger:*"
+    assert r.destination == "ledgers"
+    assert r.hash_strategy is HashStrategy.FIELD_BINS
+    assert r.value_bin is None
+
+
+def test_set_route_four_tokens_map_bin_and_custom_bin_name():
+    config = cli.build_config(
+        cli.parse_args(["--set-route", "user:*=users=map_bin=profile"])
+    )
+    r = config.aerospike.set_routes[0]
+    assert r.hash_strategy is HashStrategy.MAP_BIN
+    assert r.value_bin == "profile"
+
+
+def test_set_route_cli_rejects_four_tokens_without_map_bin():
+    with pytest.raises(argparse.ArgumentTypeError):
+        cli._parse_set_route_cli("a:*=B=field_bins=extra")
+
+
+def test_render_preview_set_route_shows_hash_overrides():
+    config = cli.build_config(
+        cli.parse_args(["--set-route", "user:*=users=map_bin=profile"])
+    )
+    preview = cli.render_preview(config, {"keys": 1}, None)
+    assert "hash_strategy=map_bin" in preview
+    assert "value_bin=" in preview
 
 
 def test_render_preview_lists_set_routes():

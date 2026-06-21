@@ -121,10 +121,17 @@ class RecordExistsPolicy(str, Enum):
 
 @dataclass(frozen=True)
 class AerospikeSetRoute:
-    """Maps a Redis key glob (``fnmatch``) to an Aerospike set; first match wins."""
+    """Maps a Redis key glob (``fnmatch``) to an Aerospike set; first match wins.
+
+    Optional ``hash_strategy`` and ``value_bin`` override the migration defaults
+    for keys matching this route. ``value_bin`` applies only when the effective
+    hash strategy for the record is ``map_bin`` (see docs).
+    """
 
     pattern: str
     destination: str
+    hash_strategy: Optional[HashStrategy] = None
+    value_bin: Optional[str] = None
 
 
 def _parse_set_routes(raw: Any) -> List[AerospikeSetRoute]:
@@ -145,6 +152,23 @@ def _parse_set_routes(raw: Any) -> List[AerospikeSetRoute]:
             )
         if not isinstance(pattern, str) or not isinstance(destination, str):
             raise TypeError(f"set_routes[{i}] pattern and destination must be strings")
+
+        raw_hs = item.get("hash_strategy")
+        route_hash: Optional[HashStrategy]
+        if raw_hs is None or raw_hs == "":
+            route_hash = None
+        else:
+            route_hash = HashStrategy(raw_hs)
+
+        raw_vb = item.get("value_bin")
+        route_vb: Optional[str]
+        if raw_vb is None or raw_vb == "":
+            route_vb = None
+        elif not isinstance(raw_vb, str):
+            raise TypeError(f"set_routes[{i}].value_bin must be a string")
+        else:
+            route_vb = raw_vb.strip() or None
+
         routes.append(
             AerospikeSetRoute(
                 pattern=_validate_aerospike_set_label(
@@ -153,6 +177,8 @@ def _parse_set_routes(raw: Any) -> List[AerospikeSetRoute]:
                 destination=_validate_aerospike_set_label(
                     destination, field=f"set_routes[{i}].destination"
                 ),
+                hash_strategy=route_hash,
+                value_bin=route_vb,
             )
         )
     return routes

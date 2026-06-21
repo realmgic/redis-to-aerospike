@@ -89,6 +89,10 @@ Notes:
   **`replace`** replaces the whole record so it matches only this migration’s bins
   (extra bins from earlier writes are removed); **`create_only`** skips the write
   and counts the key under **skipped** (`exists`) if a record already exists.
+- ``set_routes`` (YAML list) and repeatable ``--set-route`` on the CLI map Redis key
+  globs to Aerospike sets (see [Transferring data](04-transferring-data.md)). Each
+  route may set optional ``hash_strategy`` and ``value_bin`` (map-bin name; only
+  used when the effective hash strategy is ``map_bin``).
 
 ## Pipeline (YAML: top level)
 

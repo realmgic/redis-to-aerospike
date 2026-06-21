@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import fnmatch
-from typing import List, NamedTuple, Union
+from typing import List, NamedTuple, Optional, Union
 
-from .config import AerospikeSetRoute
+from .config import AerospikeSetRoute, HashStrategy
 
 
 class RouteResolution(NamedTuple):
@@ -13,6 +13,8 @@ class RouteResolution(NamedTuple):
 
     set_name: str
     key: Union[str, bytes]
+    hash_strategy: Optional[HashStrategy] = None
+    value_bin: Optional[str] = None
 
 
 def _aerospike_key_from_route(redis_key: str, pattern: str) -> str:
@@ -52,9 +54,14 @@ class SetRouter:
 
     def resolve(self, key: Union[str, bytes]) -> RouteResolution:
         if not self._routes or isinstance(key, bytes):
-            return RouteResolution(self._default, key)
+            return RouteResolution(self._default, key, None, None)
         for route in self._routes:
             if fnmatch.fnmatch(key, route.pattern):
                 out_key = _aerospike_key_from_route(key, route.pattern)
-                return RouteResolution(route.destination, out_key)
-        return RouteResolution(self._default, key)
+                return RouteResolution(
+                    route.destination,
+                    out_key,
+                    route.hash_strategy,
+                    route.value_bin,
+                )
+        return RouteResolution(self._default, key, None, None)

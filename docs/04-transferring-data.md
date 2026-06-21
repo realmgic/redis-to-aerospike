@@ -48,7 +48,7 @@ These are **orthogonal** controls:
 | Control | Config / CLI | What it does |
 | --- | --- | --- |
 | **Source filter** (less data from Redis) | YAML `redis.scan_match` (alias `key_pattern` if `scan_match` is omitted), CLI `--redis-match` or `--redis-key-pattern` | Passed to Redis `SCAN` as `MATCH`. Only keys matching this glob enter the pipeline, which reduces SCAN results and follow-up reads. |
-| **Set routes** (Aerospike placement + key) | YAML `aerospike.set_routes`, CLI `--set-route PATTERN=SET` (repeatable) | After a key is read, the first matching route picks the **Aerospike set** and rewrites the **primary key** by dropping the fixed literal parts of the pattern around a single ``*`` (see below). Keys that match none use ``aerospike.set_name`` / ``--aerospike-set`` and the full Redis key. Does **not** run an extra Redis SCAN. |
+| **Set routes** (Aerospike placement + key) | YAML `aerospike.set_routes`, CLI `--set-route` (repeatable; see [Hash strategies](#hash-strategies) for optional per-route hash tokens) | After a key is read, the first matching route picks the **Aerospike set** and rewrites the **primary key** by dropping the fixed literal parts of the pattern around a single ``*`` (see below). Keys that match none use ``aerospike.set_name`` / ``--aerospike-set`` and the full Redis key. Does **not** run an extra Redis SCAN. Optional per-route ``hash_strategy`` / ``value_bin`` (map layout only) override the pipeline defaults for matching keys. |
 
 `scan_match` defines the **superset** of keys for this run. Set routes only apply to keys already returned by SCAN.
 
@@ -83,6 +83,18 @@ redis2aerospike --redis-host localhost \
   --aerospike-host localhost --aerospike-namespace test --aerospike-set redis \
   --hash-strategy field_bins
 ```
+
+### Per-route hash layout (set routes)
+
+Each YAML mapping under ``aerospike.set_routes`` may include optional ``hash_strategy``
+(``map_bin`` or ``field_bins``) and optional ``value_bin`` (the Aerospike bin name
+for the single map when using ``map_bin``). Omitted keys fall back to the
+pipeline-level ``hash_strategy`` and ``aerospike.value_bin``. If the effective
+strategy for a key is ``field_bins``, any route ``value_bin`` is ignored.
+
+CLI ``--set-route`` accepts ``PATTERN=SET``, ``PATTERN=SET=hash_strategy``, or
+``PATTERN=SET=map_bin=CUSTOM_BIN`` for a custom map bin name (the third segment
+must be ``map_bin`` when a fourth segment is present).
 
 ## TTL handling
 

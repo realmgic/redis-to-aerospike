@@ -34,6 +34,15 @@ def test_from_config_passes_value_bin_and_strategy():
     assert out.bins == {"age": 5}
 
 
+def test_convert_hash_accepts_strategy_and_value_bin_overrides():
+    reg = ConverterRegistry.from_config(MigrationConfig())
+    r = RedisRecord(key="k", type="hash", value={b"a": b"1"})
+    out = reg.convert(r, hash_strategy=HashStrategy.FIELD_BINS)
+    assert out.bins == {"a": 1}
+    out2 = reg.convert(r, hash_strategy=HashStrategy.MAP_BIN, value_bin="z")
+    assert out2.bins == {"z": {"a": 1}}
+
+
 def test_from_config_default_rejects_oversized_ttl():
     config = MigrationConfig()
     reg = ConverterRegistry.from_config(config)

@@ -38,11 +38,19 @@ class HashConverter(Converter):
         super().__init__(value_bin, ttl_policy)
         self.strategy = strategy
 
-    def convert(self, record: RedisRecord) -> AerospikeRecord:
+    def convert(
+        self,
+        record: RedisRecord,
+        *,
+        strategy: Optional[HashStrategy] = None,
+        value_bin: Optional[str] = None,
+    ) -> AerospikeRecord:
         raw: Dict[Any, Any] = record.value or {}
-        if self.strategy is HashStrategy.FIELD_BINS:
+        use_strategy = self.strategy if strategy is None else strategy
+        if use_strategy is HashStrategy.FIELD_BINS:
             return self._build(record, self._to_field_bins(raw))
-        return self._build(record, {self.value_bin: self._to_map(raw)})
+        bin_name = self.value_bin if value_bin is None else value_bin
+        return self._build(record, {bin_name: self._to_map(raw)})
 
     def _to_map(self, raw: Dict[Any, Any]) -> Dict[str, Any]:
         return {_decode_field(field): coerce_scalar(value) for field, value in raw.items()}

@@ -22,7 +22,7 @@ import threading
 from typing import Iterator, List, Optional, Protocol
 
 from .aerospike_sink import BATCH_RECORD_EXISTS_OUTCOME, RecordAlreadyExists
-from .config import MigrationConfig, RecordExistsPolicy
+from .config import HashStrategy, MigrationConfig, RecordExistsPolicy
 from .converters.registry import ConverterRegistry, UnsupportedTypeError
 from .models import AerospikeRecord, RedisRecord
 from .progress import ProgressReporter
@@ -140,8 +140,30 @@ class Migrator:
 
     def _prepare(self, record: RedisRecord) -> Optional[AerospikeRecord]:
         """Convert and transform a record, counting skips/conversion errors."""
+        resolution = self._set_router.resolve(record.key)
+        effective_hash = (
+            resolution.hash_strategy
+            if resolution.hash_strategy is not None
+            else self._config.hash_strategy
+        )
+        if effective_hash is HashStrategy.MAP_BIN:
+            effective_value_bin = (
+                resolution.value_bin
+                if resolution.value_bin is not None
+                else self._config.aerospike.value_bin
+            )
+        else:
+            effective_value_bin = None
+
         try:
-            aerospike_record = self._registry.convert(record)
+            if record.type == "hash":
+                aerospike_record = self._registry.convert(
+                    record,
+                    hash_strategy=effective_hash,
+                    value_bin=effective_value_bin,
+                )
+            else:
+                aerospike_record = self._registry.convert(record)
         except UnsupportedTypeError:
             self.stats.record_skipped(record.type)
             logger.debug("skipping unsupported type '%s' for key '%s'", record.type, record.key)
@@ -152,7 +174,6 @@ class Migrator:
             return None
 
         aerospike_record = apply_all(aerospike_record, self._transforms)
-        resolution = self._set_router.resolve(record.key)
         if resolution.set_name != self._config.aerospike.set_name:
             aerospike_record.set_name = resolution.set_name
         if resolution.key != record.key:

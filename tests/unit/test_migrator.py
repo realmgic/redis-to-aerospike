@@ -1,7 +1,12 @@
 import threading
 import time
 
-from redis_to_aerospike.config import AerospikeSetRoute, MigrationConfig, RecordExistsPolicy
+from redis_to_aerospike.config import (
+    AerospikeSetRoute,
+    HashStrategy,
+    MigrationConfig,
+    RecordExistsPolicy,
+)
 from redis_to_aerospike.converters.base import Converter
 from redis_to_aerospike.converters.registry import ConverterRegistry
 from redis_to_aerospike.aerospike_sink import RecordAlreadyExists
@@ -109,6 +114,52 @@ def test_set_routes_set_destination_set_on_record():
 
     assert sink.written["1"].set_name == "users"
     assert sink.written["other"].set_name is None
+
+
+def test_route_hash_strategy_overrides_global_for_hash():
+    config = make_config()
+    config.hash_strategy = HashStrategy.MAP_BIN
+    config.aerospike.set_routes = [
+        AerospikeSetRoute("h:*", "hashes", hash_strategy=HashStrategy.FIELD_BINS)
+    ]
+    records = [
+        RedisRecord(key="h:1", type="hash", value={b"a": b"1", b"b": b"2"}),
+    ]
+    sink = FakeSink()
+    Migrator(
+        config, FakeSource(records), ConverterRegistry.from_config(config), sink
+    ).run()
+    assert set(sink.written["1"].bins) == {"a", "b"}
+
+
+def test_route_map_bin_custom_value_bin():
+    config = make_config()
+    config.aerospike.set_routes = [
+        AerospikeSetRoute(
+            "h:*", "hashes", hash_strategy=HashStrategy.MAP_BIN, value_bin="profile"
+        )
+    ]
+    records = [RedisRecord(key="h:1", type="hash", value={b"x": b"y"})]
+    sink = FakeSink()
+    Migrator(
+        config, FakeSource(records), ConverterRegistry.from_config(config), sink
+    ).run()
+    assert "profile" in sink.written["1"].bins
+    assert sink.written["1"].bins["profile"] == {"x": "y"}
+
+
+def test_route_value_bin_ignored_when_field_bins_effective():
+    config = make_config()
+    config.hash_strategy = HashStrategy.FIELD_BINS
+    config.aerospike.set_routes = [
+        AerospikeSetRoute("h:*", "hashes", value_bin="ignored")
+    ]
+    records = [RedisRecord(key="h:1", type="hash", value={b"f": b"v"})]
+    sink = FakeSink()
+    Migrator(
+        config, FakeSource(records), ConverterRegistry.from_config(config), sink
+    ).run()
+    assert sink.written["1"].bins == {"f": "v"}
 
 
 def test_unsupported_type_is_skipped_not_fatal():
