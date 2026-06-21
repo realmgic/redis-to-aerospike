@@ -26,6 +26,7 @@ import time
 from typing import Iterable
 
 import redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 
 KEY_PREFIX = "sample:migrate"
@@ -132,7 +133,7 @@ def seed(client: redis.Redis, total: int) -> None:
 
 
 def parse_args(argv: Iterable[str] | None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     p.add_argument("--host", default="127.0.0.1", help="Redis host")
     p.add_argument("--port", type=int, default=6379, help="Redis port")
     p.add_argument("--db", type=int, default=0, help="Redis logical database")
@@ -168,7 +169,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     try:
         client.ping()
-    except redis.exceptions.ConnectionError as e:
+    except RedisConnectionError as e:
         print(f"error: cannot connect to Redis at {args.host}:{args.port}: {e}", file=sys.stderr)
         return 1
 

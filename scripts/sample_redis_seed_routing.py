@@ -57,6 +57,7 @@ import time
 from typing import Iterable
 
 import redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 KEY_PREFIX = "sample:route"
 PIPELINE_CHUNK = 500
@@ -158,7 +159,7 @@ def seed(client: redis.Redis, per_route: int) -> int:
 
 def parse_args(argv: Iterable[str] | None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description=__doc__.split("Example")[0].strip(),
+        description=(__doc__ or "").split("Example")[0].strip(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="See module docstring for full redis2aerospike examples.",
     )
@@ -211,7 +212,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     try:
         client.ping()
-    except redis.exceptions.ConnectionError as e:
+    except RedisConnectionError as e:
         print(f"error: cannot connect to Redis at {args.host}:{args.port}: {e}", file=sys.stderr)
         return 1
 

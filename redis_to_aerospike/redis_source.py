@@ -10,14 +10,18 @@ SCAN batch costs only a couple of round-trips.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, Iterator, List
+from typing import Any, Dict, Iterable, Iterator, List, Tuple, cast
 
 import redis
+from redis.cluster import RedisCluster
 
 from .config import RedisConfig
 from .models import RedisRecord
 
 logger = logging.getLogger(__name__)
+
+# Standalone :class:`redis.Redis` or :class:`redis.cluster.RedisCluster`.
+RedisConnection = redis.Redis | RedisCluster
 
 
 def redis_client_params(config: RedisConfig):
@@ -30,7 +34,7 @@ def redis_client_params(config: RedisConfig):
     """
     # decode_responses stays False so binary-safe string values survive intact;
     # the converter decides how to decode/coerce them.
-    kwargs = {"decode_responses": False}
+    kwargs: Dict[str, Any] = {"decode_responses": False}
     if config.socket_timeout is not None:
         kwargs["socket_timeout"] = config.socket_timeout
     if config.socket_connect_timeout is not None:
@@ -69,7 +73,7 @@ def redis_client_params(config: RedisConfig):
 class RedisSource:
     """Streams :class:`RedisRecord` objects from a Redis instance."""
 
-    def __init__(self, config: RedisConfig, client: "redis.Redis | None" = None):
+    def __init__(self, config: RedisConfig, client: RedisConnection | None = None):
         self._config = config
         self._cluster = config.cluster
         if client is not None:
@@ -78,8 +82,6 @@ class RedisSource:
 
         cluster, url, kwargs = redis_client_params(config)
         if cluster:
-            from redis.cluster import RedisCluster  # local import: optional path
-
             self._client = (
                 RedisCluster.from_url(url, **kwargs) if url else RedisCluster(**kwargs)
             )
@@ -87,7 +89,7 @@ class RedisSource:
             self._client = redis.Redis.from_url(url, **kwargs) if url else redis.Redis(**kwargs)
 
     @property
-    def client(self) -> "redis.Redis":
+    def client(self) -> RedisConnection:
         return self._client
 
     def ping(self) -> bool:
@@ -113,7 +115,11 @@ class RedisSource:
 
         try:
             nodes = self._info_nodes("memory")
-            used = [n.get("used_memory") for n in nodes if n.get("used_memory") is not None]
+            used: List[int] = []
+            for n in nodes:
+                v = n.get("used_memory")
+                if isinstance(v, int):
+                    used.append(v)
             if used:
                 info["used_memory"] = sum(used)
                 # In cluster mode the human-readable per-node value is no longer
@@ -215,11 +221,18 @@ class RedisSource:
         if self._cluster:
             yield from self._iter_cluster_key_batches(batch_size)
             return
+        # Non-cluster path uses synchronous ``Redis.scan``; redis-py 7 stubs
+        # type ``scan`` as possibly async, so we assert the real sync return shape.
+        sync_client = cast(redis.Redis, self._client)
         cursor = 0
         while True:
-            cursor, keys = self._client.scan(
-                cursor=cursor, match=self._config.scan_match, count=batch_size
+            page = cast(
+                Tuple[int, List[bytes]],
+                sync_client.scan(
+                    cursor=cursor, match=self._config.scan_match, count=batch_size
+                ),
             )
+            cursor, keys = page
             if keys:
                 yield list(keys)
             if cursor == 0:
@@ -241,8 +254,9 @@ class RedisSource:
     def _fetch_types_and_ttls(self, keys: Iterable[bytes]):
         pipe = self._client.pipeline(transaction=False)
         for key in keys:
-            pipe.type(key)
-            pipe.pttl(key)
+            rk = cast(Any, key)
+            pipe.type(rk)
+            pipe.pttl(rk)
         results = pipe.execute()
 
         types = {}
@@ -263,20 +277,21 @@ class RedisSource:
             if key_type == "none":
                 continue
             ordered_keys.append(key)
+            rk = cast(Any, key)
             if key_type == "string":
-                pipe.get(key)
+                pipe.get(rk)
             elif key_type == "hash":
-                pipe.hgetall(key)
+                pipe.hgetall(rk)
             elif key_type == "list":
-                pipe.lrange(key, 0, -1)
+                pipe.lrange(rk, 0, -1)
             elif key_type == "set":
-                pipe.smembers(key)
+                pipe.smembers(rk)
             elif key_type == "zset":
-                pipe.zrange(key, 0, -1, withscores=True)
+                pipe.zrange(rk, 0, -1, withscores=True)
             else:
                 # Unknown/unsupported type (e.g. stream): fetch nothing, drop a
                 # placeholder so indices stay aligned.
-                pipe.exists(key)
+                pipe.exists(rk)
         results = pipe.execute()
         return dict(zip(ordered_keys, results))
 

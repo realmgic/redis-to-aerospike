@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import queue
 import threading
-from typing import List, Optional, Protocol
+from typing import Iterator, List, Optional, Protocol
 
 from .aerospike_sink import BATCH_RECORD_EXISTS_OUTCOME, RecordAlreadyExists
 from .config import MigrationConfig, RecordExistsPolicy
@@ -38,7 +38,7 @@ _STOP = object()
 
 
 class _Source(Protocol):
-    def iter_records(self, batch_size: int): ...
+    def iter_records(self, batch_size: int) -> Iterator[RedisRecord]: ...
 
 
 class _Sink(Protocol):

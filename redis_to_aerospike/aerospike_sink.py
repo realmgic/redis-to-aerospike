@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+# Aerospike composite key: (namespace, set_name, user_key).
+AerospikeKeyTuple = Tuple[str, str, Union[str, bytes]]
 
 from .config import AerospikeConfig, RecordExistsPolicy
 from .models import AerospikeRecord, BinWritePolicy
@@ -230,7 +233,7 @@ class AerospikeSink:
             self._aerospike = aerospike
         return self._aerospike
 
-    def _key(self, record: AerospikeRecord):
+    def _key(self, record: AerospikeRecord) -> AerospikeKeyTuple:
         set_name = record.set_name or self._config.set_name
         return (self._config.namespace, set_name, record.key)
 
@@ -277,8 +280,9 @@ class AerospikeSink:
             if isinstance(v, int):
                 codes.add(v)
         try:
-            import aerospike.exception as ae
+            import importlib
 
+            ae = importlib.import_module("aerospike.exception")
             c = getattr(ae.RecordExistsError, "code", None)
             if isinstance(c, int):
                 codes.add(c)
@@ -405,8 +409,8 @@ class AerospikeSink:
         results: List[Optional[str]] = [None] * len(records)
         # Aerospike key per non-oversized record, plus the last input slot that
         # carries each key (the one we actually send: last-write-wins).
-        key_of: List[Optional[tuple]] = [None] * len(records)
-        last_slot_for_key: Dict[tuple, int] = {}
+        key_of: List[Optional[AerospikeKeyTuple]] = [None] * len(records)
+        last_slot_for_key: Dict[AerospikeKeyTuple, int] = {}
         for i, record in enumerate(records):
             reason = self._too_large_reason(record)
             if reason is not None:
@@ -421,7 +425,7 @@ class AerospikeSink:
 
         # One Write per unique key, built from its winning (last) occurrence.
         writes = []
-        sent_keys: List[tuple] = []
+        sent_keys: List[AerospikeKeyTuple] = []
         for key, slot in last_slot_for_key.items():
             record = records[slot]
             writes.append(

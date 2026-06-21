@@ -30,7 +30,15 @@ Requires **Python 3.10+**.
    ```
 
    This installs the runtime dependencies plus the dev tooling
-   (`pytest`, `testcontainers`, `hypothesis`, `fakeredis`).
+   (`pytest`, `pyrefly`, `testcontainers`, `hypothesis`, `fakeredis`).
+
+If you use **Pyrefly** in the editor, point the workspace at the same virtualenv
+you used for `pip install -e ".[dev]"` so the language server matches the
+checker's `pyproject.toml` settings. If you still see impossible diagnostics
+inside the standard library (for example `builtins.pyi` complaining about
+`tuple[TypeVar, ...]` having “too many type arguments”), update the **Pyrefly**
+extension to the latest release; that message comes from an older bundled
+typeshed/parser mismatch, not from this repository's code.
 
 If you are new to the tool itself, read the [user guide](docs/README.md) first to
 understand how migrations work.

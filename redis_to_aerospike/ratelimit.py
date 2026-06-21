@@ -26,10 +26,10 @@ class TokenBucket:
     """
 
     def __init__(self, rate: float, capacity: Optional[float] = None):
-        self.rate = float(rate)
+        self.rate = rate
         self.enabled = self.rate > 0
         # Default the burst to one second's worth of rate.
-        self.capacity = float(capacity) if capacity is not None else self.rate
+        self.capacity = capacity if capacity is not None else self.rate
         self._tokens = self.capacity
         self._last = time.monotonic()
         self._lock = threading.Lock()

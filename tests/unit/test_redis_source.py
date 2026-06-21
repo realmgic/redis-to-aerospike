@@ -1,9 +1,11 @@
 """Unit tests for RedisSource using an in-memory fakeredis backend."""
 
+from typing import cast
+
 import pytest
 
 from redis_to_aerospike.config import RedisConfig
-from redis_to_aerospike.redis_source import RedisSource, redis_client_params
+from redis_to_aerospike.redis_source import RedisConnection, RedisSource, redis_client_params
 
 
 @pytest.fixture
@@ -83,7 +85,7 @@ class _FakeClusterClient:
 
 def test_cluster_scan_chunks_into_batches():
     keys = [f"k{i}".encode() for i in range(25)]
-    src = RedisSource(RedisConfig(cluster=True), client=_FakeClusterClient(keys))
+    src = RedisSource(RedisConfig(cluster=True), client=cast(RedisConnection, _FakeClusterClient(keys)))
     batches = list(src._iter_key_batches(10))
     assert [len(b) for b in batches] == [10, 10, 5]
     assert [k for b in batches for k in b] == keys
@@ -196,6 +198,6 @@ def test_server_info_is_best_effort(monkeypatch):
         def info(self, section):
             raise ConnectionError("down")
 
-    src = RedisSource(RedisConfig(), client=_BrokenClient())
+    src = RedisSource(RedisConfig(), client=cast(RedisConnection, _BrokenClient()))
     # Never raises; just returns whatever it could gather (here, nothing).
     assert src.server_info() == {}

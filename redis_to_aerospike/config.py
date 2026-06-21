@@ -11,7 +11,10 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+
+# (hostname, port) for each Aerospike seed node.
+AerospikeHost = Tuple[str, int]
 
 # Aerospike set names are bounded; keep a conservative client-side limit.
 _MAX_AEROSPIKE_SET_NAME_LEN = 128
@@ -54,7 +57,7 @@ def _as_bool(value: Any, default: bool = False) -> bool:
     return default
 
 
-def _normalize_hosts(hosts: Any, host: Any, port: Any) -> Optional[List[tuple]]:
+def _normalize_hosts(hosts: Any, host: Any, port: Any) -> Optional[List[AerospikeHost]]:
     """Build a ``[(host, port), ...]`` list from YAML-style inputs.
 
     Supports either a ``hosts`` list (of ``[host, port]`` pairs or mappings with
@@ -62,7 +65,7 @@ def _normalize_hosts(hosts: Any, host: Any, port: Any) -> Optional[List[tuple]]:
     ``None`` when nothing host-related was provided so callers keep their default.
     """
     if hosts:
-        normalized: List[tuple] = []
+        normalized: List[AerospikeHost] = []
         for entry in hosts:
             if isinstance(entry, dict):
                 normalized.append((entry["host"], int(entry.get("port", 3000))))
@@ -194,29 +197,29 @@ class RedisConfig:
     scan_match: str = "*"
 
     @classmethod
-    def from_env(cls, env: Optional[dict] = None) -> "RedisConfig":
-        env = os.environ if env is None else env
+    def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "RedisConfig":
+        lookup: Mapping[str, str] = os.environ if env is None else env
 
         def as_float(name: str) -> Optional[float]:
-            value = env.get(name)
+            value = lookup.get(name)
             return float(value) if value not in (None, "") else None
 
         return cls(
-            host=env.get("REDIS_HOST", cls.host),
-            port=int(env.get("REDIS_PORT", cls.port)),
-            db=int(env.get("REDIS_DB", cls.db)),
-            url=env.get("REDIS_URL") or None,
-            cluster=_as_bool(env.get("REDIS_CLUSTER"), cls.cluster),
-            username=env.get("REDIS_USERNAME") or None,
-            password=env.get("REDIS_PASSWORD") or None,
-            ssl=_as_bool(env.get("REDIS_SSL"), cls.ssl),
-            ssl_ca_certs=env.get("REDIS_SSL_CA_CERTS") or None,
-            ssl_certfile=env.get("REDIS_SSL_CERTFILE") or None,
-            ssl_keyfile=env.get("REDIS_SSL_KEYFILE") or None,
-            ssl_cert_reqs=env.get("REDIS_SSL_CERT_REQS") or None,
+            host=lookup.get("REDIS_HOST", cls.host),
+            port=int(lookup.get("REDIS_PORT", cls.port)),
+            db=int(lookup.get("REDIS_DB", cls.db)),
+            url=lookup.get("REDIS_URL") or None,
+            cluster=_as_bool(lookup.get("REDIS_CLUSTER"), cls.cluster),
+            username=lookup.get("REDIS_USERNAME") or None,
+            password=lookup.get("REDIS_PASSWORD") or None,
+            ssl=_as_bool(lookup.get("REDIS_SSL"), cls.ssl),
+            ssl_ca_certs=lookup.get("REDIS_SSL_CA_CERTS") or None,
+            ssl_certfile=lookup.get("REDIS_SSL_CERTFILE") or None,
+            ssl_keyfile=lookup.get("REDIS_SSL_KEYFILE") or None,
+            ssl_cert_reqs=lookup.get("REDIS_SSL_CERT_REQS") or None,
             socket_timeout=as_float("REDIS_SOCKET_TIMEOUT"),
             socket_connect_timeout=as_float("REDIS_SOCKET_CONNECT_TIMEOUT"),
-            scan_match=env.get("REDIS_SCAN_MATCH", cls.scan_match),
+            scan_match=lookup.get("REDIS_SCAN_MATCH", cls.scan_match),
         )
 
     @classmethod
@@ -242,7 +245,7 @@ class AerospikeConfig:
     """Connection settings and key placement for the Aerospike sink."""
 
     # List of (host, port) tuples. Defaults to a single local node.
-    hosts: List[tuple] = field(default_factory=lambda: [("localhost", 3000)])
+    hosts: List[AerospikeHost] = field(default_factory=lambda: [("localhost", 3000)])
     # Use the server's alternate-access address (NAT / cloud / Docker).
     use_services_alternate: bool = False
 
@@ -292,37 +295,37 @@ class AerospikeConfig:
     max_ttl: int = DEFAULT_MAX_TTL_S
 
     @classmethod
-    def from_env(cls, env: Optional[dict] = None) -> "AerospikeConfig":
-        env = os.environ if env is None else env
-        host = env.get("AEROSPIKE_HOST", "localhost")
-        port = int(env.get("AEROSPIKE_PORT", 3000))
+    def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "AerospikeConfig":
+        lookup: Mapping[str, str] = os.environ if env is None else env
+        host = lookup.get("AEROSPIKE_HOST", "localhost")
+        port = int(lookup.get("AEROSPIKE_PORT", 3000))
         return cls(
             hosts=[(host, port)],
             use_services_alternate=_as_bool(
-                env.get("AEROSPIKE_USE_SERVICES_ALTERNATE"), cls.use_services_alternate
+                lookup.get("AEROSPIKE_USE_SERVICES_ALTERNATE"), cls.use_services_alternate
             ),
-            username=env.get("AEROSPIKE_USERNAME") or None,
-            password=env.get("AEROSPIKE_PASSWORD") or None,
-            auth_mode=env.get("AEROSPIKE_AUTH_MODE") or None,
-            tls_enable=_as_bool(env.get("AEROSPIKE_TLS_ENABLE"), cls.tls_enable),
-            tls_name=env.get("AEROSPIKE_TLS_NAME") or None,
-            tls_cafile=env.get("AEROSPIKE_TLS_CAFILE") or None,
-            tls_certfile=env.get("AEROSPIKE_TLS_CERTFILE") or None,
-            tls_keyfile=env.get("AEROSPIKE_TLS_KEYFILE") or None,
-            tls_keyfile_pw=env.get("AEROSPIKE_TLS_KEYFILE_PW") or None,
-            socket_timeout_ms=int(env.get("AEROSPIKE_SOCKET_TIMEOUT_MS", cls.socket_timeout_ms)),
-            total_timeout_ms=int(env.get("AEROSPIKE_TOTAL_TIMEOUT_MS", cls.total_timeout_ms)),
-            connect_timeout_ms=int(env.get("AEROSPIKE_CONNECT_TIMEOUT_MS", cls.connect_timeout_ms)),
-            login_timeout_ms=int(env.get("AEROSPIKE_LOGIN_TIMEOUT_MS", cls.login_timeout_ms)),
-            namespace=env.get("AEROSPIKE_NAMESPACE", cls.namespace),
-            set_name=env.get("AEROSPIKE_SET", cls.set_name),
-            value_bin=env.get("AEROSPIKE_VALUE_BIN", cls.value_bin),
-            send_key=_as_bool(env.get("AEROSPIKE_SEND_KEY"), cls.send_key),
+            username=lookup.get("AEROSPIKE_USERNAME") or None,
+            password=lookup.get("AEROSPIKE_PASSWORD") or None,
+            auth_mode=lookup.get("AEROSPIKE_AUTH_MODE") or None,
+            tls_enable=_as_bool(lookup.get("AEROSPIKE_TLS_ENABLE"), cls.tls_enable),
+            tls_name=lookup.get("AEROSPIKE_TLS_NAME") or None,
+            tls_cafile=lookup.get("AEROSPIKE_TLS_CAFILE") or None,
+            tls_certfile=lookup.get("AEROSPIKE_TLS_CERTFILE") or None,
+            tls_keyfile=lookup.get("AEROSPIKE_TLS_KEYFILE") or None,
+            tls_keyfile_pw=lookup.get("AEROSPIKE_TLS_KEYFILE_PW") or None,
+            socket_timeout_ms=int(lookup.get("AEROSPIKE_SOCKET_TIMEOUT_MS", cls.socket_timeout_ms)),
+            total_timeout_ms=int(lookup.get("AEROSPIKE_TOTAL_TIMEOUT_MS", cls.total_timeout_ms)),
+            connect_timeout_ms=int(lookup.get("AEROSPIKE_CONNECT_TIMEOUT_MS", cls.connect_timeout_ms)),
+            login_timeout_ms=int(lookup.get("AEROSPIKE_LOGIN_TIMEOUT_MS", cls.login_timeout_ms)),
+            namespace=lookup.get("AEROSPIKE_NAMESPACE", cls.namespace),
+            set_name=lookup.get("AEROSPIKE_SET", cls.set_name),
+            value_bin=lookup.get("AEROSPIKE_VALUE_BIN", cls.value_bin),
+            send_key=_as_bool(lookup.get("AEROSPIKE_SEND_KEY"), cls.send_key),
             record_exists_policy=RecordExistsPolicy(
-                env.get("AEROSPIKE_RECORD_EXISTS_POLICY", cls.record_exists_policy.value)
+                lookup.get("AEROSPIKE_RECORD_EXISTS_POLICY", cls.record_exists_policy.value)
             ),
-            max_record_size=int(env.get("AEROSPIKE_MAX_RECORD_SIZE", cls.max_record_size)),
-            max_ttl=int(env.get("AEROSPIKE_MAX_TTL", cls.max_ttl)),
+            max_record_size=int(lookup.get("AEROSPIKE_MAX_RECORD_SIZE", cls.max_record_size)),
+            max_ttl=int(lookup.get("AEROSPIKE_MAX_TTL", cls.max_ttl)),
         )
 
     @classmethod
@@ -382,31 +385,31 @@ class MigrationConfig:
     progress_interval: float = 10.0
 
     @classmethod
-    def from_env(cls, env: Optional[dict] = None) -> "MigrationConfig":
-        env = os.environ if env is None else env
+    def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "MigrationConfig":
+        lookup: Mapping[str, str] = os.environ if env is None else env
         return cls(
-            redis=RedisConfig.from_env(env),
-            aerospike=AerospikeConfig.from_env(env),
-            workers=int(env.get("MIGRATION_WORKERS", cls.workers)),
-            scan_batch=int(env.get("MIGRATION_SCAN_BATCH", cls.scan_batch)),
-            queue_size=int(env.get("MIGRATION_QUEUE_SIZE", cls.queue_size)),
+            redis=RedisConfig.from_env(lookup),
+            aerospike=AerospikeConfig.from_env(lookup),
+            workers=int(lookup.get("MIGRATION_WORKERS", cls.workers)),
+            scan_batch=int(lookup.get("MIGRATION_SCAN_BATCH", cls.scan_batch)),
+            queue_size=int(lookup.get("MIGRATION_QUEUE_SIZE", cls.queue_size)),
             scan_rate_limit=float(
-                env.get("MIGRATION_SCAN_RATE_LIMIT", cls.scan_rate_limit)
+                lookup.get("MIGRATION_SCAN_RATE_LIMIT", cls.scan_rate_limit)
             ),
             write_rate_limit=float(
-                env.get("MIGRATION_WRITE_RATE_LIMIT", cls.write_rate_limit)
+                lookup.get("MIGRATION_WRITE_RATE_LIMIT", cls.write_rate_limit)
             ),
             write_batch_size=int(
-                env.get("MIGRATION_WRITE_BATCH_SIZE", cls.write_batch_size)
+                lookup.get("MIGRATION_WRITE_BATCH_SIZE", cls.write_batch_size)
             ),
             hash_strategy=HashStrategy(
-                env.get("MIGRATION_HASH_STRATEGY", cls.hash_strategy.value)
+                lookup.get("MIGRATION_HASH_STRATEGY", cls.hash_strategy.value)
             ),
             ttl_overflow_policy=TtlOverflowPolicy(
-                env.get("MIGRATION_TTL_OVERFLOW_POLICY", cls.ttl_overflow_policy.value)
+                lookup.get("MIGRATION_TTL_OVERFLOW_POLICY", cls.ttl_overflow_policy.value)
             ),
             progress_interval=float(
-                env.get("MIGRATION_PROGRESS_INTERVAL", cls.progress_interval)
+                lookup.get("MIGRATION_PROGRESS_INTERVAL", cls.progress_interval)
             ),
         )
 

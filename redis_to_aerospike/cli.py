@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .aerospike_sink import AerospikeServerInfo, AerospikeSink
 from .config import (
@@ -26,7 +26,8 @@ logger = logging.getLogger("redis_to_aerospike.cli")
 # Maps an argparse dest -> (section, field, coerce). ``section`` is one of
 # "redis"/"aerospike"/None (None means a top-level MigrationConfig field).
 # ``coerce`` optionally transforms the raw CLI value before assignment.
-_ARG_MAP: Dict[str, tuple] = {
+_CLIArgBinding = Tuple[Optional[str], str, Any]
+_ARG_MAP: Dict[str, _CLIArgBinding] = {
     "redis_host": ("redis", "host", None),
     "redis_port": ("redis", "port", None),
     "redis_db": ("redis", "db", None),
