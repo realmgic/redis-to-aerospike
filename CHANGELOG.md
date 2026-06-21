@@ -9,6 +9,20 @@ for installs and issue reports, not a formal product release cadence.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-21
+
+### Added
+
+- Optional per-route **`hash_strategy`** and **`value_bin`** on `aerospike.set_routes`, with fallback to the global `hash_strategy` and `aerospike.value_bin`. Route `value_bin` is used only when the effective hash layout is **`map_bin`** (ignored for **`field_bins`**).
+- Extended **`--set-route`** token forms: `PATTERN=SET=hash_strategy` and `PATTERN=SET=map_bin=CUSTOM_BIN` for a custom map bin name (fourth segment requires `map_bin` as the third).
+- Migration preview lists per-route hash overrides when set.
+
+### Changed
+
+- Typing and static-analysis cleanup across the package (Redis standalone vs cluster client surfaces, migrator source/sink protocols, rate limiter and config annotations, and related Pyrefly/Pyright alignment).
+
+## [0.2.0] - 2026-06-19
+
 ### Changed
 
 - **Breaking:** PyPI distribution renamed from `redis-to-aerospike` to `redis2aerospike`; the installed CLI is now `redis2aerospike` (replacing `redis-to-aerospike`).
