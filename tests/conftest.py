@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import types
+from typing import Any
 
 import pytest
 
@@ -55,7 +56,7 @@ def fake_aerospike(monkeypatch):
     class KeyOrderedDict(dict):
         """Mirrors :class:`aerospike.KeyOrderedDict` for sink unit tests."""
 
-    aero = types.ModuleType("aerospike")
+    aero: Any = types.ModuleType("aerospike")
     aero.KeyOrderedDict = KeyOrderedDict
     aero.LIST_ORDERED = 1
     aero.LIST_WRITE_ADD_UNIQUE = 1
@@ -74,9 +75,9 @@ def fake_aerospike(monkeypatch):
     aero.AEROSPIKE_ERR_RECORD_EXISTS = 17
 
     helpers = types.ModuleType("aerospike_helpers")
-    ops_pkg = types.ModuleType("aerospike_helpers.operations")
-    operations = types.ModuleType("aerospike_helpers.operations.operations")
-    list_operations = types.ModuleType("aerospike_helpers.operations.list_operations")
+    ops_pkg: Any = types.ModuleType("aerospike_helpers.operations")
+    operations: Any = types.ModuleType("aerospike_helpers.operations.operations")
+    list_operations: Any = types.ModuleType("aerospike_helpers.operations.list_operations")
 
     operations.write = lambda bin_name, value: {"op": "write", "bin": bin_name, "val": value}
     list_operations.list_append_items = lambda bin_name, items, policy: {
@@ -90,8 +91,8 @@ def fake_aerospike(monkeypatch):
 
     # Batch helpers: plain objects capturing what the sink builds, with
     # settable result/in_doubt fields the fake client fills on batch_write.
-    batch_pkg = types.ModuleType("aerospike_helpers.batch")
-    batch_records_mod = types.ModuleType("aerospike_helpers.batch.records")
+    batch_pkg: Any = types.ModuleType("aerospike_helpers.batch")
+    batch_records_mod: Any = types.ModuleType("aerospike_helpers.batch.records")
 
     class Write:
         def __init__(self, key, ops, meta=None, policy=None):

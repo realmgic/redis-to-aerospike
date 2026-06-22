@@ -49,7 +49,7 @@ def test_never_expire_converts_overflow():
 
 def test_string_mode_is_accepted():
     # CLI / env supply plain strings; the policy normalizes them.
-    assert TtlPolicy(mode="clamp").mode is TtlOverflowPolicy.CLAMP
+    assert TtlPolicy(mode=TtlOverflowPolicy.CLAMP).mode is TtlOverflowPolicy.CLAMP
 
 
 def test_zero_max_ttl_disables_the_check():

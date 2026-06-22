@@ -93,7 +93,7 @@ def secure_aerospike_container():
     container.start()
     try:
         host = container.get_container_host_ip()
-        port = int(container.get_exposed_port(3000))
+        port = container.get_exposed_port(3000)
         _wait_for_secure_aerospike(host, port)
         _grant_admin_read_write(host, port)
         yield {"host": host, "port": port, "namespace": NAMESPACE}

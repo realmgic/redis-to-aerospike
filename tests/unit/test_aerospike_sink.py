@@ -567,8 +567,8 @@ def test_sink_server_info_queries_namespace_and_parses(monkeypatch):
     info = sink.server_info()
 
     assert client.command == "namespace/prod"
-    assert info.nsup_period == 0
-    assert info.max_record_size == 2048
+    assert info and info.nsup_period == 0
+    assert info and info.max_record_size == 2048
 
 
 def test_sink_server_info_returns_none_on_failure():

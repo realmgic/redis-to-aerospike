@@ -48,6 +48,10 @@ class _Sink(Protocol):
     def write_many(self, records: List[AerospikeRecord]) -> List[Optional[str]]: ...
 
 
+class _RateLimiter(Protocol):
+    def acquire(self, tokens: float = ...) -> None: ...
+
+
 class Migrator:
     def __init__(
         self,
@@ -74,8 +78,8 @@ class Migrator:
         # limiter is shared by every worker thread, so it must be thread-safe.
         # Its burst is widened to fit a whole batch so flushing one batch is not
         # fragmented across several waits.
-        self._scan_limiter = TokenBucket(config.scan_rate_limit)
-        self._write_limiter = TokenBucket(
+        self._scan_limiter: _RateLimiter = TokenBucket(config.scan_rate_limit)
+        self._write_limiter: _RateLimiter = TokenBucket(
             config.write_rate_limit,
             capacity=max(config.write_rate_limit, self._batch_size),
         )

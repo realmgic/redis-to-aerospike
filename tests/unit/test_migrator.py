@@ -1,5 +1,6 @@
 import threading
 import time
+from typing import List, Optional
 
 from redis_to_aerospike.config import (
     AerospikeSetRoute,
@@ -35,6 +36,18 @@ class FakeSink:
             raise RuntimeError("boom")
         with self._lock:
             self.written[record.key] = record
+
+    def write_many(self, records: List[AerospikeRecord]) -> List[Optional[str]]:
+        """Batch path: mirror ``write`` outcomes (``_Sink`` protocol)."""
+        results: List[Optional[str]] = []
+        for record in records:
+            if record.key in self._fail_keys:
+                results.append("RuntimeError")
+            else:
+                with self._lock:
+                    self.written[record.key] = record
+                results.append(None)
+        return results
 
 
 def make_config(**kwargs):
@@ -82,7 +95,7 @@ class CountingBucket:
 
     def acquire(self, tokens: float = 1.0) -> None:
         with self._lock:
-            self.total += tokens
+            self.total += int(tokens)
 
 
 def test_all_records_flow_through():
