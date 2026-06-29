@@ -36,6 +36,7 @@ AEROSPIKE_NAMESPACE = "test"
 
 def _docker_available() -> bool:
     try:
+        # pyrefly: ignore [untyped-import]
         import docker  # noqa: F401
 
         client = docker.from_env()
@@ -61,7 +62,7 @@ def redis_container():
     container.start()
     try:
         host = container.get_container_host_ip()
-        port = int(container.get_exposed_port(6379))
+        port = container.get_exposed_port(6379)
         yield {"host": host, "port": port}
     finally:
         container.stop()
@@ -73,7 +74,7 @@ def aerospike_container():
     container.start()
     try:
         host = container.get_container_host_ip()
-        port = int(container.get_exposed_port(3000))
+        port = container.get_exposed_port(3000)
         _wait_for_aerospike(host, port)
         yield {"host": host, "port": port, "namespace": AEROSPIKE_NAMESPACE}
     finally:
@@ -120,7 +121,7 @@ def valkey_container():
     container.start()
     try:
         host = container.get_container_host_ip()
-        port = int(container.get_exposed_port(6379))
+        port = container.get_exposed_port(6379)
         yield {"host": host, "port": port}
     finally:
         container.stop()

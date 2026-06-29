@@ -9,6 +9,12 @@ for installs and issue reports, not a formal product release cadence.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-29
+
+### Added
+
+- Shell tab completion for bash, zsh, and fish via `redis2aerospike --print-completion {bash,zsh,fish}` (powered by `shtab`).
+
 ## [0.3.0] - 2026-06-21
 
 ### Added

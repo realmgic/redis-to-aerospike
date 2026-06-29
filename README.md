@@ -94,6 +94,23 @@ redis2aerospike --version
 
 See [Versioning and changelog](#versioning-and-changelog) for the in-repo history.
 
+### Shell completion
+
+Generate and install tab completion for your shell:
+
+```bash
+# bash
+redis2aerospike --print-completion bash > ~/.local/share/bash-completion/completions/redis2aerospike
+
+# zsh (note leading underscore)
+redis2aerospike --print-completion zsh > ~/.local/share/zsh/site-functions/_redis2aerospike
+
+# fish (filename must match the command + .fish)
+redis2aerospike --print-completion fish > ~/.config/fish/completions/redis2aerospike.fish
+```
+
+Restart your shell, or `source` the completion file, for changes to take effect.
+
 ### Develop from source
 
 From a clone of this repository, install in editable mode with the dev extras

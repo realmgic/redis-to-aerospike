@@ -449,3 +449,21 @@ def test_apply_server_info_keeps_default_when_server_unknown():
     original = config.aerospike.max_record_size
     cli.apply_server_info(config, AerospikeServerInfo(namespace="test", max_record_size=0))
     assert config.aerospike.max_record_size == original
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish"])
+def test_print_completion(shell, capsys):
+    assert cli.main(["--print-completion", shell]) == 0
+    out = capsys.readouterr().out
+    assert "redis2aerospike" in out
+    assert "redis-host" in out
+
+
+def test_print_completion_does_not_connect(monkeypatch, capsys):
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError("should not connect when printing completion")
+
+    monkeypatch.setattr(cli, "RedisSource", _fail_if_called)
+    monkeypatch.setattr(cli, "AerospikeSink", _fail_if_called)
+    assert cli.main(["--print-completion", "bash"]) == 0
+    assert "redis2aerospike" in capsys.readouterr().out

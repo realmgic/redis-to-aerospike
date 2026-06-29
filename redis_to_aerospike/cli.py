@@ -6,6 +6,8 @@ import argparse
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
+import shtab
+
 from .aerospike_sink import AerospikeServerInfo, AerospikeSink
 from .config import (
     HashStrategy,
@@ -146,7 +148,7 @@ def _parse_set_route_cli(token: str):
     return _parse_set_routes([mapping])[0]
 
 
-def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     # All config-bearing flags default to SUPPRESS so the parsed namespace
     # contains *only* what the user explicitly passed. That lets build_config()
     # treat a YAML file (or the dataclass defaults) as the base and override it
@@ -157,17 +159,23 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         description="Migrate Redis data into Aerospike using native Aerospike types.",
     )
     parser.add_argument(
+        "--print-completion",
+        choices=["bash", "zsh", "fish"],
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
     )
 
-    parser.add_argument(
+    config_arg = parser.add_argument(
         "--config",
         default=None,
         help="path to a YAML config file (optional). Provides the base config; "
         "explicitly-passed CLI flags override individual values.",
     )
+    config_arg.complete = shtab.FILE  # type: ignore[attr-defined]
 
     sup = argparse.SUPPRESS
 
@@ -190,9 +198,18 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     redis.add_argument("--redis-username", default=sup, help="ACL username (Redis 6+)")
     redis.add_argument("--redis-password", default=sup)
     redis.add_argument("--redis-ssl", action="store_true", default=sup, help="enable TLS")
-    redis.add_argument("--redis-ssl-ca-certs", default=sup, help="TLS CA certificate file")
-    redis.add_argument("--redis-ssl-certfile", default=sup, help="mutual TLS: client certificate file")
-    redis.add_argument("--redis-ssl-keyfile", default=sup, help="mutual TLS: client key file")
+    redis_ssl_ca = redis.add_argument(
+        "--redis-ssl-ca-certs", default=sup, help="TLS CA certificate file"
+    )
+    redis_ssl_ca.complete = shtab.FILE  # type: ignore[attr-defined]
+    redis_ssl_cert = redis.add_argument(
+        "--redis-ssl-certfile", default=sup, help="mutual TLS: client certificate file"
+    )
+    redis_ssl_cert.complete = shtab.FILE  # type: ignore[attr-defined]
+    redis_ssl_key = redis.add_argument(
+        "--redis-ssl-keyfile", default=sup, help="mutual TLS: client key file"
+    )
+    redis_ssl_key.complete = shtab.FILE  # type: ignore[attr-defined]
     redis.add_argument(
         "--redis-ssl-cert-reqs",
         choices=["required", "optional", "none"],
@@ -241,13 +258,18 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=sup,
         help="server certificate subject name (applied to every host)",
     )
-    aero.add_argument("--aerospike-tls-cafile", default=sup, help="TLS CA certificate file")
-    aero.add_argument(
+    aero_tls_ca = aero.add_argument(
+        "--aerospike-tls-cafile", default=sup, help="TLS CA certificate file"
+    )
+    aero_tls_ca.complete = shtab.FILE  # type: ignore[attr-defined]
+    aero_tls_cert = aero.add_argument(
         "--aerospike-tls-certfile", default=sup, help="mutual TLS: client certificate file"
     )
-    aero.add_argument(
+    aero_tls_cert.complete = shtab.FILE  # type: ignore[attr-defined]
+    aero_tls_key = aero.add_argument(
         "--aerospike-tls-keyfile", default=sup, help="mutual TLS: client key file"
     )
+    aero_tls_key.complete = shtab.FILE  # type: ignore[attr-defined]
     aero.add_argument(
         "--aerospike-tls-keyfile-pw", default=sup, help="mutual TLS: client key password"
     )
@@ -352,7 +374,52 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
     )
-    return parser.parse_args(argv)
+    return parser
+
+
+def _fish_completion(parser: argparse.ArgumentParser) -> str:
+    """Generate a fish completion script from an ``argparse`` parser."""
+    prog = parser.prog or "redis2aerospike"
+    lines = [f"# fish completion for {prog}", ""]
+    for action in parser._actions:
+        if not action.option_strings or action.dest in {"help", "print_completion"}:
+            continue
+        if isinstance(action, argparse._VersionAction):
+            continue
+
+        opt_parts: List[str] = []
+        for opt in action.option_strings:
+            if opt.startswith("--"):
+                opt_parts.append(f"-l {opt[2:]}")
+            elif opt.startswith("-") and len(opt) == 2:
+                opt_parts.append(f"-s {opt[1]}")
+
+        desc = (action.help or "").replace("'", "\\'")
+        parts = [
+            f"complete -c {prog}",
+            "-n '__fish_use_subcommand'",
+            *opt_parts,
+        ]
+        if desc:
+            parts.append(f"-d '{desc}'")
+
+        if getattr(action, "complete", None) == shtab.FILE:
+            parts.append("-r -F")
+        elif action.choices is not None:
+            choices = " ".join(str(c) for c in action.choices)
+            parts.append(f"-xa '{choices}'")
+        elif not isinstance(action, argparse._StoreTrueAction) and not isinstance(
+            action, argparse._StoreFalseAction
+        ):
+            parts.append("-r")
+
+        lines.append(" ".join(parts))
+
+    return "\n".join(lines) + "\n"
+
+
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    return build_parser().parse_args(argv)
 
 
 def _auth_summary(aero) -> str:
@@ -578,7 +645,15 @@ def apply_server_info(
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    args = parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if getattr(args, "print_completion", None):
+        if args.print_completion == "fish":
+            print(_fish_completion(parser), end="")
+        else:
+            print(shtab.complete(parser, shell=args.print_completion), end="")
+        return 0
+
     logging.basicConfig(
         level=getattr(logging, args.log_level),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
